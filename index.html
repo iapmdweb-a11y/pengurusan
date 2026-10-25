@@ -1,0 +1,313 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Lab Budget Tracker</title>
+<style>
+:root{--bg:#f6f7f9;--cd:#fff;--tx:#1c2430;--mu:#667085;--bd:#e2e6ec;--ac:#0f766e;--wa:#b45309;--er:#b91c1c;--ok:#15803d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--cd:#1b222b;--tx:#e8ecf1;--mu:#98a2b3;--bd:#2c3642;--ac:#2dd4bf;--wa:#fbbf24;--er:#f87171;--ok:#4ade80}}
+:root[data-theme="dark"]{--bg:#12161c;--cd:#1b222b;--tx:#e8ecf1;--mu:#98a2b3;--bd:#2c3642;--ac:#2dd4bf;--wa:#fbbf24;--er:#f87171;--ok:#4ade80}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.w{max-width:980px;margin:0 auto;padding:12px}
+h1{font-size:18px;margin:4px 0 10px}h2{font-size:15px;margin:0 0 8px}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button,.b{border:1px solid var(--bd);background:var(--cd);color:var(--tx);padding:7px 12px;border-radius:8px;cursor:pointer;font:inherit}
+.tabs button.on,.b.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.b.d{color:var(--er)}
+.c{background:var(--cd);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px}
+.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:620px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd);vertical-align:middle}th{color:var(--mu);font-weight:600;font-size:12px}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;max-width:100%;box-sizing:border-box}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end}
+label{display:block;font-size:12px;color:var(--mu)}
+.bar{height:10px;background:var(--bd);border-radius:6px;overflow:hidden;min-width:100px}.bar i{display:block;height:100%}
+.al{padding:8px 10px;border-radius:8px;margin-bottom:6px;border-left:4px solid var(--wa);background:var(--bg)}
+.al.e{border-color:var(--er)}.al.i{border-color:var(--ac)}
+.tg{font-size:11px;padding:1px 6px;border-radius:10px;border:1px solid var(--bd);color:var(--mu)}
+.er{color:var(--er)}.wa{color:var(--wa)}.ok{color:var(--ok)}.mu{color:var(--mu)}
+.m{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
+.m>div{background:var(--cd);border-radius:10px;padding:16px;max-width:420px;width:100%}
+.k{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}.k div{background:var(--bg);border-radius:8px;padding:8px}.k b{font-size:16px;display:block}
+</style></head><body><div class="w"><div id="bar" class="mu" style="text-align:right"></div><div id="votes" style="margin:0 0 8px"></div><h1 id="ttl">🧪 Pathology Lab Budget &amp; LPO Tracker</h1><div id="who" class="mu" style="margin:-6px 0 8px"></div>
+<div class="tabs" id="tabs"></div><div id="v"><div class="c">Loading…</div></div></div>
+<script src="/xlsx.full.min.js"></script>
+<script>
+/* Intranet adapter: gives the page the same db/user/downloads interface, backed by this server. */
+(function(){
+const E=id=>document.getElementById(id),subs=[];let ver=0,me=null;
+const j=async(u,o)=>{const r=await fetch(u,o&&{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});let t={};try{t=await r.json()}catch(e){}
+ if(r.status===401&&u!=='/api/login'){const e=new Error('auth');e.code=401;throw e}if(!r.ok)throw new Error(t.error||'Error '+r.status);return t};
+const refresh=async()=>{for(const f of subs)try{await f()}catch(e){}};
+setInterval(async()=>{try{const v=(await j('/api/ver')).v;if(v!==ver){ver=v;refresh()}}catch(e){if(e.code===401)location.reload()}},3000);
+async function w(op,path,data){try{const r=await j('/api/doc',{op,path,data});refresh();return r}catch(e){alert(e.message);throw e}}
+const db={doc:p=>({onSnapshot(cb){const f=async()=>{let d=null;try{d=(await j('/api/doc?path='+encodeURIComponent(p))).data}catch(e){}cb({exists:d!==null,data:()=>d})};subs.push(f);f()},
+ set:d=>w('set',p,d),update:d=>w('update',p,d),delete:()=>w('delete',p,{})}),
+ collection:c=>({onSnapshot(cb){const f=async()=>{const r=await j('/api/col?name='+c);cb({docs:r.docs.map(x=>({id:x.id,data:()=>x.data}))})};subs.push(f);f()},add:async d=>({id:(await w('add',c,d)).id})})};
+const U={id:async()=>me.id,canEdit:()=>me.canEdit,profiles:async ids=>j('/api/names?ids='+ids.join(',')),search:async q=>j('/api/search?q='+encodeURIComponent(q))};
+function loginUI(){E('v').innerHTML='<div class="c" style="max-width:340px;margin:40px auto"><h2>Sign in</h2><label>Username</label><input id="lu1" style="width:100%"><label style="margin-top:8px">Password</label><input id="lp1" type="password" style="width:100%"><p><button class="b p" id="lb">Sign in</button></p><p id="le" class="er"></p></div>';
+ const go=async()=>{try{await j('/api/login',{username:E('lu1').value,password:E('lp1').value});location.reload()}catch(e){E('le').textContent=e.message}};E('lb').onclick=go;E('lp1').onkeydown=e=>{if(e.key==='Enter')go()}}
+window.claude={use:async n=>{
+ if(n==='db')return db;
+ if(n==='downloads')return{save:async({filename,data})=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data]));a.download=filename;a.click();return{status:'saved'}}};
+ if(n==='user'){try{me=await j('/api/me')}catch(e){loginUI();return new Promise(()=>{})}
+  if(me.role==='staff'){location.replace('/docs');return new Promise(()=>{})}
+  E('bar').innerHTML=me.name+' &middot; <a href="/docs">Dokumen ISO</a> &middot; <a href="#" onclick="chpw();return false">Change password</a> &middot; <a href="#" onclick="outx();return false">Sign out</a>';return U}}};
+window.jx=j;window.outx=async()=>{await j('/api/logout',{});location.reload()};
+window.chpw=async()=>{const o=prompt('Current password'),n=o&&prompt('New password (8 or more characters)');if(!n)return;try{await j('/api/password',{old:o,new:n});alert('Password changed.')}catch(e){alert(e.message)}};
+window.acct=async function(){const us=(await j('/api/users')).users;
+ E('v').innerHTML=`<div class="c sc"><h2>Accounts</h2><table><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr>${us.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${u.role==='admin'?'Admin (PIC / HOD)':u.role==='staff'?'Staff (documents only)':'Unit head'}</td><td>${u.active?'<span class="ok">Active</span>':'<span class="er">Disabled</span>'}</td><td><button class="b" onclick="acr('${u.id}')">Reset password</button> <button class="b d" onclick="acs('${u.id}',${u.active?0:1})">${u.active?'Disable':'Enable'}</button></td></tr>`).join('')}</table></div>
+ <div class="c"><h2>New account</h2><div class="g"><div><label>Full name</label><input id="an"></div><div><label>Username</label><input id="au"></div><div><label>Temporary password (8+)</label><input id="ap"></div><div><label>Role</label><select id="ar"><option value="user">Unit head</option><option value="staff">Staff (documents only)</option><option value="admin">Admin (PIC / HOD)</option></select></div><div><button class="b p" onclick="acn()">Create</button></div></div>
+ <p class="mu">After creating a unit head, open the Team tab, search for the name and tick their units.</p></div>
+ <div class="c"><h2>Backup</h2><p class="mu" style="margin:0 0 8px">Downloads a full copy of all data. Keep copies somewhere safe.</p><a class="b" href="/api/backup" style="text-decoration:none;display:inline-block">Download backup</a> <a class="b" href="/api/export" style="text-decoration:none;display:inline-block">Export data file (keep inside the hospital)</a></div>`};
+window.acn=async()=>{try{await j('/api/users',{action:'create',name:E('an').value,username:E('au').value,password:E('ap').value,role:E('ar').value});acct()}catch(e){alert(e.message)}};
+window.acr=async id=>{const p=prompt('New password for this person (8 or more characters)');if(!p)return;try{await j('/api/users',{action:'reset',id,password:p});alert('Password reset. They are signed out.')}catch(e){alert(e.message)}};
+window.acs=async(id,a)=>{try{await j('/api/users',{action:'active',id,active:a});acct()}catch(e){alert(e.message)}};
+})();
+</script>
+<script>window.APP=__APP_JSON__;</script>
+<script>
+const $=id=>document.getElementById(id);
+const R=n=>'RM '+(+n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let U,db,ME,ADMIN=false,tab='dash',names={},S={joins:[],recon:[],counts:[],items:[],moves:[],warrants:[],cfg:null,lpos:[],reqs:[],mem:null,members:[]},hits=[];
+async function init(){
+ try{U=await claude.use('user');db=await claude.use('db')}catch(e){}
+ if(!U||!db){$('v').innerHTML='<div class="c">Please open this page while signed in to claude.ai. Ask the account PIC to share it with you.</div>';return}
+ ME=await U.id();ADMIN=U.canEdit();
+ db.doc('config/main').onSnapshot(s=>{S.cfg=s.exists?s.data():null;draw()});
+ db.doc('members/'+ME).onSnapshot(s=>{S.mem=s.exists?s.data():null;draw()});
+ db.collection('lpos').onSnapshot(s=>{S.lpos=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+ db.collection('warrants').onSnapshot(s=>{S.warrants=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+ db.collection('items').onSnapshot(s=>{S.items=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+ db.collection('moves').onSnapshot(s=>{S.moves=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+ db.collection('counts').onSnapshot(s=>{S.counts=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+ db.collection('reqs').onSnapshot(s=>{S.reqs=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+ if(ADMIN)db.collection('joins').onSnapshot(s=>{S.joins=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+ if(ADMIN)db.collection('recon').onSnapshot(s=>{S.recon=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+ if(ADMIN)db.collection('members').onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));draw()});
+}
+const cfg=()=>S.cfg,units=()=>S.cfg.units||[];
+const mine=()=>ADMIN?units().map(u=>u.n):(S.mem&&S.mem.units)||[];
+const vis=n=>mine().includes(n);
+const lastTot=()=>units().reduce((a,u)=>a+(+u.last||0),0)||1;
+const pct=u=>(+u.last||0)/lastTot()*100;
+const alloc=u=>pct(u)/100*cfg().budget+(+u.top||0);
+const val=l=>l.inv!=null&&l.inv!==''?+l.inv:+l.lpo;
+const used=n=>S.lpos.filter(l=>l.unit===n&&l.st==='Active'&&(!l.src||l.src==='budget')).reduce((a,l)=>a+val(l),0);
+const SI=()=>S.items.filter(i=>ADMIN||vis(i.unit));
+const rcv=l=>S.moves.filter(m=>m.type==='in'&&(m.lpo||'').toUpperCase()===l.no.toUpperCase()).reduce((a,m)=>a+m.qty*m.price,0);
+function bal(i,d){let b=+i.open||0,v=null,vd='';S.moves.filter(m=>m.item===i.id&&(!d||(m.date||'')<=d)).sort((x,y)=>x.ts-y.ts).forEach(m=>{if(m.type==='in')b+=m.qty;else if(m.type==='out'||m.type==='waste')b-=m.qty;else{v=m.qty-b;vd=m.date;b=m.qty}});return{b,v,vd}}
+const W=()=>S.warrants.filter(w=>ADMIN||vis(w.unit));
+const wused=id=>S.lpos.filter(l=>l.src===id&&l.st==='Active').reduce((a,l)=>a+val(l),0);
+const held=n=>S.lpos.filter(l=>l.unit===n&&l.st==='Held'&&(!l.src||l.src==='budget')).reduce((a,l)=>a+val(l),0);
+async function nm(ids){ids=ids.filter(i=>i&&!names[i]);if(!ids.length)return;try{const p=await U.profiles(ids);ids.forEach(i=>names[i]=(p[i]&&p[i].name)||'User');draw()}catch(e){}}
+function alerts(){const a=[],L=S.lpos.filter(l=>vis(l.unit)),seen={};
+L.forEach(l=>(seen[l.no.trim().toUpperCase()]=seen[l.no.trim().toUpperCase()]||[]).push(l));
+Object.values(seen).forEach(g=>{if(g.length>1)a.push(['e',`Duplicate LPO ${esc(g[0].no)} appears ${g.length} times. Do not send twice to the PIC.`])});
+S.reqs.filter(r=>r.st==='Pending'&&vis(r.unit)).forEach(r=>a.push(['e',`Extra budget request pending: ${esc(r.unit)} needs ${R(r.amt)} (LPO ${esc(r.no)}). Reason: ${esc(r.reason)}`]));
+if(ADMIN)L.filter(l=>!l.ack&&l.st!=='Rejected').forEach(l=>a.push(['e',`New purchase not yet recorded in the account: ${esc(l.unit)}, LPO ${esc(l.no)}, ${R(l.lpo)}, ${esc(l.item)}.`]));
+L.filter(l=>l.inv!=null&&l.inv!==''&&Math.abs(l.inv-l.lpo)>0.005).forEach(l=>a.push(['w',`Amount not tallied: LPO ${esc(l.no)} was ${R(l.lpo)} but invoice is ${R(l.inv)} (difference ${R(l.inv-l.lpo)}).`]));
+L.filter(l=>l.st==='Active'&&(l.inv==null||l.inv==='')&&(Date.now()-new Date(l.date))/864e5>30).forEach(l=>a.push(['w',`LPO ${esc(l.no)} (${esc(l.unit)}) has no invoice after 30+ days.`]));
+const el=Math.min(1,Math.max(0,(Date.now()-new Date(cfg().year,0,1))/(new Date(cfg().year,11,31)-new Date(cfg().year,0,1))))*100;
+units().filter(u=>vis(u.n)).forEach(u=>{const al=alloc(u),us=used(u.n),p=al?us/al*100:0;
+if(p>100)a.push(['e',`${esc(u.n)} is OVER its allocation by ${R(us-al)}. Approval needed.`]);
+else if(p>=80)a.push(['w',`${esc(u.n)} has used ${p.toFixed(0)}% of its allocation. ${R(al-us)} left.`]);
+else if(p>el+15&&el>5)a.push(['w',`${esc(u.n)} is spending faster than the calendar: ${p.toFixed(0)}% used, ${el.toFixed(0)}% of the year gone.`])});
+if(ADMIN){const now=new Date(),m=now.getMonth(),py=m===0?now.getFullYear()-1:now.getFullYear(),pm=py+'-'+String(m===0?12:m).padStart(2,'0');
+if(py===+cfg().year&&now.getDate()>=10){const miss=units().filter(u=>!rc(pm,u.n));if(miss.length)a.push(['w',`${pm} has not been reconciled with the official ledger for: ${miss.map(u=>esc(u.n)).join(', ')}.`])}
+units().forEach(u=>{const r=S.recon.filter(x=>x.unit===u.n).sort((x,y)=>y.month.localeCompare(x.month))[0];if(r){const d=r.official-trk(u.n,r.month);if(Math.abs(d)>.5)a.push(['e',`${esc(u.n)}: official ledger and tracker differ by ${R(d)} as at ${r.month}.`])}})}
+const miss={};S.moves.filter(m=>m.type==='in'&&!m.lk&&(m.date||'')>=new Date(Date.now()-30*864e5).toISOString().slice(0,10)).forEach(m=>{const i=SI().find(x=>x.id===m.item);if(i&&!i.noexp)miss[i.n]=(miss[i.n]||0)+1});
+Object.keys(miss).forEach(n=>a.push(['w',`${esc(n)}: ${miss[n]} delivery(ies) in the last 30 days recorded without lot number and expiry date.`]));
+lotRows().forEach(r=>{const u=esc(r.i.n)+' ('+esc(r.i.unit)+'), lot '+esc(r.x.lot);
+if(r.d!=null&&r.d<0)a.push(['e',`${u} expired on ${esc(r.x.exp)} with ${r.x.rem} ${esc(r.i.uom)} left (${R(r.x.rem*r.pr)}). Discard it and record the discard.`]);
+else if(r.d!=null&&r.d<=(cfg().exd||60))a.push(['w',`${u} expires in ${r.d} days, ${r.x.rem} ${esc(r.i.uom)} left${r.waste>=.5?`. Likely to expire before use, estimated waste ${R(r.waste*r.pr)}`:''}.`])});
+SI().forEach(i=>{const x=bal(i);if(x.b<0)a.push(['e',`${esc(i.n)} (${esc(i.unit)}): more issued than received. Balance ${x.b}.`]);else if(x.b<=i.reorder)a.push(['w',`${esc(i.n)} (${esc(i.unit)}) is at or below reorder level: ${x.b} ${esc(i.uom)} left.`]);if(x.v)a.push(['e',`${esc(i.n)}: last stock count differs from records by ${x.v>0?'+':''}${x.v} ${esc(i.uom)} (${esc(x.vd)}). Investigate.`]);const k=stk(i);if(k.st==='Low')a.push([k.dos<7?'e':'w',`${esc(i.n)} (${esc(i.unit)}): about ${Math.round(k.dos)} days of stock left at current use.`]);else if(k.st==='Overstocked')a.push(['w',`${esc(i.n)} (${esc(i.unit)}): about ${Math.round(k.dos)} days of stock on hand. Over-ordering ties up money and risks expiry.`])});
+L.filter(l=>l.st==='Active'&&rcv(l)>0&&Math.abs(rcv(l)-val(l))>0.005*val(l)).forEach(l=>a.push(['w',`LPO ${esc(l.no)}: goods received are worth ${R(rcv(l))} but the ${l.inv!=null&&l.inv!==''?'invoice':'LPO'} is ${R(val(l))} (partial delivery?).`]));
+W().forEach(w=>{const u=wused(w.id),p=w.amt?u/w.amt*100:0,d=(new Date(w.expiry)-Date.now())/864e5,left=w.amt-u;
+if(p>=80)a.push(['w',`Warrant "${esc(w.name)}" is ${p.toFixed(0)}% used, ${R(left)} left.`]);
+if(w.expiry&&d<0&&left>0)a.push(['e',`Warrant "${esc(w.name)}" has expired with ${R(left)} unspent.`]);
+else if(w.expiry&&d<=30&&left>0)a.push(['w',`Warrant "${esc(w.name)}" expires in ${Math.ceil(d)} days with ${R(left)} unspent.`])});
+return a}
+function nav(){const pn=S.reqs.filter(r=>r.st==='Pending'&&vis(r.unit)).length;
+const t=[['dash','Dashboard'],['lpo','LPO Register'],['req','Requests'+(pn?' ('+pn+')':'')],['warr','Warrants'],['stock','Stock'],...(APP.tests?[['tests','Cost per test']]:[])];if(ADMIN)t.push(['rev','Mid-term review'],['recon','Reconcile'],['team','Team'],['acct','Accounts'],['set','Setup']);
+$('tabs').innerHTML=t.map(x=>`<button class="${tab===x[0]?'on':''}" onclick="tab='${x[0]}';draw()">${x[1]}</button>`).join('')}
+function draw(){
+ if(!U||!db)return;
+ if(!S.cfg){$('v').innerHTML='<div class="c">'+(ADMIN?'Budget not set up yet. Ask Claude to seed the setup.':'Waiting for the account PIC to set up the budget.')+'</div>';return}
+ if(!ADMIN&&!mine().length){$('tabs').innerHTML='';$('v').innerHTML=joinView();return}
+ $('who').textContent=ADMIN?'Signed in as admin (PIC / HOD): full access':'Unit head: '+mine().join(', ');
+ nav();({dash,lpo,req,warr,stock,tests,recon,acct,rev,team,set})[tab]();
+ nm([...S.lpos.map(l=>l.by),...S.members.map(m=>m.id)])}
+function dash(){const us=units().filter(u=>vis(u.n)),tu=us.reduce((a,u)=>a+used(u.n),0),ta=us.reduce((a,u)=>a+alloc(u),0),A=alerts();
+$('v').innerHTML=`<div class="c"><div class="k"><div>${ADMIN?'Annual budget':'Your allocation'}<b>${R(ADMIN?cfg().budget:ta)}</b></div><div>Spent / committed<b>${R(tu)}</b></div><div>Remaining<b class="${ta-tu<0?'er':''}">${R(ta-tu)}</b></div><div>Alerts<b class="${A.length?'er':'ok'}">${A.length}</b></div></div></div>
+<div class="c"><h2>Alerts</h2>${A.length?A.map(x=>`<div class="al ${x[0]}">${x[1]}</div>`).join(''):'<div class="al i">All clear.</div>'}</div>
+<div class="c sc"><h2>Units</h2><table><tr><th>Unit</th><th>Share</th><th>Allocation</th><th>Used</th><th>Held</th><th>Left</th><th>Usage</th></tr>${us.map(u=>{const al=alloc(u),x=used(u.n),p=al?x/al*100:0,col=p>100?'var(--er)':p>=80?'var(--wa)':'var(--ok)';return`<tr><td>${esc(u.n)}${u.res?' <span class="tg">Reserve</span>':''}</td><td>${pct(u).toFixed(1)}%</td><td>${R(al)}</td><td>${R(x)}</td><td>${held(u.n)?R(held(u.n)):'-'}</td><td class="${al-x<0?'er':''}">${R(al-x)}</td><td><div class="bar"><i style="width:${Math.min(100,p)}%;background:${col}"></i></div><small class="mu">${p.toFixed(0)}%</small></td></tr>`}).join('')}</table></div>`}
+function lpo(){const o=mine().map(n=>`<option>${esc(n)}</option>`).join('');
+$('v').innerHTML=`<div class="c"><h2>New LPO</h2><p class="mu" style="margin:0 0 8px">Saving an LPO notifies the account PIC immediately.</p><div class="g">
+<div><label>LPO no.</label><input id="fn"></div><div><label>Date</label><input id="fd" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+<div><label>Unit</label><select id="fu">${o}</select></div><div><label>Fund</label><select id="ff"><option value="budget">Normal budget</option>${W().map(w=>`<option value="${w.id}">Warrant: ${esc(w.name)} (${esc(w.unit)})</option>`).join('')}</select></div><div><label>Supplier</label><input id="fs"></div>
+<div><label>Item</label><input id="fi"></div><div><label>LPO amount (RM)</label><input id="fa" type="number" step="0.01"></div>
+<div><button class="b p" onclick="addL()">Add LPO</button></div></div></div>
+<div class="c sc"><h2>Register</h2><table><tr><th>LPO</th><th>Date</th><th>Unit</th><th>Item / supplier</th><th>LPO RM</th><th>Invoice RM</th><th>Status</th><th>Entered by</th><th>Account</th></tr>
+${S.lpos.filter(l=>vis(l.unit)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(l=>{const mm=l.inv!=null&&l.inv!==''&&Math.abs(l.inv-l.lpo)>0.005;return`<tr><td>${esc(l.no)}</td><td>${esc(l.date)}</td><td>${esc(l.unit)}</td><td>${esc(l.item)}${l.src&&l.src!=='budget'?' <span class="tg">'+esc((S.warrants.find(w=>w.id===l.src)||{}).name||'warrant')+'</span>':''}<br><small class="mu">${esc(l.sup)}</small></td><td>${R(l.lpo)}${rcv(l)?`<br><small class="mu">Received ${R(rcv(l))}</small>`:''}</td>
+<td><input type="number" step="0.01" style="width:100px" value="${l.inv??''}" onchange="inv('${l.id}',this.value)">${mm?'<br><small class="er">≠ LPO</small>':''}</td>
+<td><span class="tg">${l.st}</span></td><td>${esc(dn(l.by))}</td>
+<td>${l.ack?'<span class="ok">Recorded</span>':ADMIN?`<button class="b p" onclick="ack('${l.id}')">Mark recorded</button>`:'<span class="wa">Awaiting PIC</span>'} ${ADMIN?`<button class="b d" onclick="del('${l.id}')">✕</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="9" class="mu">No LPOs yet.</td></tr>'}</table></div>`}
+async function addL(){const no=$('fn').value.trim(),amt=+$('fa').value,un=$('fu').value;
+if(!no||!(amt>0))return alert('Enter LPO number and amount.');
+if(S.lpos.some(l=>l.no.trim().toUpperCase()===no.toUpperCase()))return alert('LPO '+no+' already exists. Duplicate blocked.');
+const src=$('ff').value;
+if(src!=='budget'){const w=S.warrants.find(x=>x.id===src);if(w.unit!==un)return alert('This warrant is for '+w.unit+' only.');if(amt>w.amt-wused(src))return alert('Not enough in this warrant ('+R(w.amt-wused(src))+' left). Ask the PIC to increase it.')}
+const u=units().find(x=>x.n===un),over=used(un)+held(un)+amt-alloc(u);
+const l={no,date:$('fd').value,unit:un,sup:$('fs').value,item:$('fi').value,lpo:amt,inv:null,ack:ADMIN,by:ME,src,st:'Active'};
+if(src==='budget'&&over>0){window._l=l;return modal(`<h2>Over budget</h2><p>${esc(un)} would exceed its allocation by <b>${R(over)}</b>. The LPO will be held and a request sent to the PIC.</p><label>Reason for extra budget</label><textarea id="rr" rows="3" style="width:100%"></textarea><p style="text-align:right"><button class="b" onclick="closeM()">Cancel</button> <button class="b p" onclick="hold(${over})">Hold &amp; request</button></p>`)}
+await db.collection('lpos').add(l)}
+async function hold(over){const r=$('rr').value.trim();if(!r)return alert('Please give a reason.');const l=window._l;l.st='Held';const ref=await db.collection('lpos').add(l);
+await db.collection('reqs').add({unit:l.unit,amt:over,reason:r,no:l.no,lid:ref.id,st:'Pending',date:new Date().toISOString().slice(0,10),by:ME});closeM();tab='req';draw()}
+const inv=(id,v)=>db.doc('lpos/'+id).update({inv:v===''?null:+v});
+const ack=id=>db.doc('lpos/'+id).update({ack:true});
+async function del(id){if(!confirm('Delete this LPO?'))return;await db.doc('lpos/'+id).delete();for(const r of S.reqs.filter(r=>r.lid===id))await db.doc('reqs/'+r.id).delete()}
+function req(){$('v').innerHTML=`<div class="c sc"><h2>Additional budget requests</h2><table><tr><th>Date</th><th>Unit</th><th>LPO</th><th>Extra needed</th><th>Reason</th><th>Status</th><th></th></tr>${S.reqs.filter(r=>vis(r.unit)).sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`<tr><td>${r.date}</td><td>${esc(r.unit)}</td><td>${esc(r.no)}</td><td>${R(r.amt)}</td><td>${esc(r.reason)}</td><td><span class="tg">${r.st}</span></td><td>${ADMIN&&r.st==='Pending'?`<button class="b p" onclick="dec('${r.id}',1)">Approve</button> ${units().some(u=>u.res&&u.n!==r.unit&&lend(u)>0)?`<button class="b" onclick="decR('${r.id}')">Approve from reserve</button>`:''} <button class="b d" onclick="dec('${r.id}',0)">Reject</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mu">No requests.</td></tr>'}</table></div>`}
+async function dec(id,ok){const r=S.reqs.find(x=>x.id===id);
+if(ok){const c=JSON.parse(JSON.stringify(cfg()));c.units.find(u=>u.n===r.unit).top=(+c.units.find(u=>u.n===r.unit).top||0)+r.amt;(c.log=c.log||[]).push({d:new Date().toISOString().slice(0,10),t:`${R(r.amt)} extra approved for ${r.unit} (LPO ${r.no})`});await db.doc('config/main').set(c)}
+await db.doc('reqs/'+id).update({st:ok?'Approved':'Rejected'});
+if(S.lpos.some(l=>l.id===r.lid))await db.doc('lpos/'+r.lid).update({st:ok?'Active':'Rejected',ack:true})}
+function team(){$('v').innerHTML=pend()+`<div class="c"><h2>Unit heads</h2><p class="mu" style="margin:0 0 8px">Create each person's login under Accounts. Then search for them here and tick their units. PIC and HOD accounts should have the Admin role.</p>
+<input id="sq" placeholder="Search person by name" oninput="srch(this.value)" style="width:100%"><div id="sh"></div></div>
+<div class="c sc"><table><tr><th>Person</th><th>Units</th><th></th></tr>${S.members.map(m=>`<tr><td>${esc(dn(m.id))}</td><td>${units().map(u=>`<label style="display:inline-block;margin-right:8px"><input type="checkbox" ${(m.units||[]).includes(u.n)?'checked':''} onchange="tg('${m.id}','${esc(u.n)}',this.checked)"> ${esc(u.n)}</label>`).join('')}</td><td><button class="b d" onclick="db.doc('members/${m.id}').delete()">Remove</button></td></tr>`).join('')||'<tr><td colspan="3" class="mu">Nobody assigned yet.</td></tr>'}</table></div>`}
+async function srch(q){try{hits=await U.search(q)}catch(e){hits=[]}$('sh').innerHTML=!hits.length&&q?'<p class="mu">No match. Create the account under Accounts first.</p>':hits.slice(0,6).map(h=>`<div style="padding:4px 0">${esc(h.name||h.id)} <button class="b" onclick="addM('${h.id}')">Add</button></div>`).join('')}
+async function addM(id){if(!S.members.some(m=>m.id===id))await db.doc('members/'+id).set({units:[]});$('sq').value='';$('sh').innerHTML=''}
+function tg(id,n,on){const m=S.members.find(x=>x.id===id),u=new Set(m.units||[]);on?u.add(n):u.delete(n);return db.doc('members/'+id).update({units:[...u]})}
+function set(){set0();if(ny)nyp()}
+function set0(){const c=cfg();$('v').innerHTML=nyCard()+`<div class="c"><h2>Budget</h2><div class="g"><div><label>Year</label><input type="number" value="${c.year}" onchange="up(x=>x.year=+this.value)"></div><div><label>Annual budget (RM)</label><input type="number" value="${c.budget}" onchange="up(x=>x.budget=+this.value)"></div></div></div>
+<div class="c sc"><h2>Unit shares (from last year's spending)</h2><table><tr><th>Unit</th><th>Last year RM</th><th>Share</th><th>Allocation</th><th>Approved top-ups</th><th>Reserve</th><th></th></tr>${c.units.map((u,i)=>`<tr><td><input value="${esc(u.n)}" onchange="up(x=>x.units[${i}].n=this.value)"></td><td><input type="number" style="width:110px" value="${u.last}" onchange="up(x=>x.units[${i}].last=+this.value)"></td><td>${pct(u).toFixed(1)}%</td><td>${R(alloc(u))}</td><td>${R(u.top)}</td><td><input type="checkbox" ${u.res?'checked':''} onchange="up(x=>x.units[${i}].res=this.checked)"></td><td><button class="b d" onclick="rm(${i})">✕</button></td></tr>`).join('')}</table>
+<p><button class="b" onclick="up(x=>x.units.push({n:'New unit',last:0,top:0}))">+ Add unit</button></p><p class="mu">Renaming a unit after LPOs exist will detach them. Add a new unit instead.</p></div>`}
+function up(f){const c=JSON.parse(JSON.stringify(cfg()));f(c);return db.doc('config/main').set(c)}
+function rm(i){if(S.lpos.some(l=>l.unit===units()[i].n))return alert('This unit has LPOs.');up(x=>x.units.splice(i,1))}
+function warr(){const A=ADMIN;$('v').innerHTML=`<div class="c sc"><h2>Special warrants (ring-fenced funds)</h2><p class="mu" style="margin:0 0 8px">Warrant money is separate from the normal budget and can only be spent on LPOs tagged to that warrant.</p><table><tr><th>Warrant</th><th>Unit</th><th>Purpose</th><th>Amount</th><th>Used</th><th>Left</th><th>Expiry</th><th></th></tr>${W().map(w=>{const u=wused(w.id);return`<tr><td>${esc(w.name)}</td><td>${esc(w.unit)}</td><td>${esc(w.purpose)}</td><td>${A?`<input type="number" style="width:110px" value="${w.amt}" onchange="db.doc('warrants/${w.id}').update({amt:+this.value})">`:R(w.amt)}</td><td>${R(u)}</td><td class="${w.amt-u<0?'er':''}">${R(w.amt-u)}</td><td>${esc(w.expiry)}</td><td>${A?`<button class="b d" onclick="dw('${w.id}')">✕</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="8" class="mu">No warrants.</td></tr>'}</table></div>`+(A?`<div class="c"><h2>New warrant</h2><div class="g"><div><label>Name</label><input id="wn"></div><div><label>Unit</label><select id="wu">${units().map(u=>`<option>${esc(u.n)}</option>`).join('')}</select></div><div><label>Amount (RM)</label><input id="wa" type="number"></div><div><label>Purpose / test</label><input id="wp"></div><div><label>Expiry</label><input id="we" type="date"></div><div><button class="b p" onclick="aw()">Add warrant</button></div></div></div>`:'')}
+async function aw(){const n=$('wn').value.trim(),a=+$('wa').value,u=$('wu').value;if(!n||!(a>0))return alert('Name and amount required.');await db.collection('warrants').add({name:n,unit:u,amt:a,purpose:$('wp').value,expiry:$('we').value});up(c=>{(c.log=c.log||[]).push({d:new Date().toISOString().slice(0,10),t:`Warrant "${n}" ${R(a)} created for ${u}`})})}
+async function dw(id){if(S.lpos.some(l=>l.src===id))return alert('LPOs are tagged to this warrant.');if(confirm('Delete this warrant?'))await db.doc('warrants/'+id).delete()}
+function rev(){const c=cfg(),el=Math.max(.05,Math.min(1,(Date.now()-new Date(c.year,0,1))/(new Date(c.year,11,31)-new Date(c.year,0,1)))),rows=units().map(u=>{const al=alloc(u),x=used(u.n),pj=x/el;return{u,al,x,pj,gap:al-pj}}),tp=rows.reduce((a,r)=>a+r.pj,0);
+$('v').innerHTML=`<div class="c"><h2>Mid-term review ${c.year}</h2><p class="mu">${(el*100).toFixed(0)}% of the year has passed. Projection = spent so far ÷ share of year passed. It assumes even spending, so seasonal or bulk buying will skew it.</p><div class="sc"><table><tr><th>Unit</th><th>Allocation</th><th>Used</th><th>Projected year-end</th><th>Surplus / shortfall</th><th></th></tr>${rows.map(r=>`<tr><td>${esc(r.u.n)}</td><td>${R(r.al)}</td><td>${R(r.x)}</td><td>${R(r.pj)}</td><td class="${r.gap<0?'er':'ok'}">${r.gap<0?'Short '+R(-r.gap):'Surplus '+R(r.gap)}</td><td>${r.gap<0?`<button class="b" onclick="tr('${esc(r.u.n)}',${-r.gap})">${units().some(u=>u.res&&lend(u)>0)?'Cover from reserve':'Cover shortfall'}</button>`:''}</td></tr>`).join('')}</table></div>
+<p>Total projected: <b>${R(tp)}</b> against lab budget <b>${R(c.budget)}</b>. ${tp>c.budget?'<span class="er">Projected to exceed the budget. Move money from surplus units first, then prepare an additional budget request for the rest.</span>':'<span class="ok">Within the lab budget.</span>'}</p><button class="b" onclick="window.print()">Print</button></div>
+<div class="c"><h2>Allocation history</h2>${(c.log||[]).slice().reverse().map(x=>`<div>${x.d}: ${esc(x.t)}</div>`).join('')||'<span class="mu">No changes yet.</span>'}</div>`+resCard()}
+function tr(to,amt){modal(`<h2>Cover ${esc(to)} shortfall</h2><label>Move from</label><select id="ts">${units().filter(u=>u.n!==to).sort((a,b)=>(b.res?1:0)-(a.res?1:0)).map(u=>`<option value="${esc(u.n)}">${esc(u.n)}${u.res?' (reserve, safe to lend '+R(lend(u))+')':''}</option>`).join('')}</select><label>Amount (RM)</label><input id="ta" type="number" value="${Math.ceil(amt)}"><p style="text-align:right"><button class="b" onclick="closeM()">Cancel</button> <button class="b p" onclick="doTr('${esc(to)}')">Move</button></p>`)}
+function doTr(to){const f=$('ts').value,a=+$('ta').value,s=units().find(u=>u.n===f);if(!(a>0))return;if(a>alloc(s)-used(f))return alert(f+' only has '+R(alloc(s)-used(f))+' unspent.');if(s.res&&a>lend(s)&&!confirm('More than '+f+' can safely lend at its current spending rate ('+R(lend(s))+'). Move it anyway?'))return;up(c=>{const F=c.units.find(u=>u.n===f),T=c.units.find(u=>u.n===to);F.top=(+F.top||0)-a;T.top=(+T.top||0)+a;(c.log=c.log||[]).push({d:new Date().toISOString().slice(0,10),t:`${R(a)} moved from ${f}${s.res?' (reserve)':''} to ${to}`})});closeM()}
+function stock(){stock0();lotOpts()}
+function stock0(){const A=ADMIN,I=SI(),td=new Date().toISOString().slice(0,10);$('v').innerHTML=`<div class="c sc"><h2>Stock tally</h2><p class="mu" style="margin:0 0 8px">Balance = opening + received - issued. A physical count resets the balance and shows the variance. Days of stock = balance / average daily use over the last 90 days. Turnover = yearly use / average stock held. Stock value on hand: <b>${R(I.reduce((a,i)=>a+Math.max(0,bal(i).b)*avgP(i),0))}</b>. Discarded or expired this year: <b>${R(wasteVal())}</b>.</p>${A?`<div class="g" style="margin-bottom:8px"><div><label>Alert when below (days of stock)</label><input type="number" value="${cfg().lo||14}" onchange="up(c=>c.lo=+this.value)"></div><div><label>Alert when above (days of stock)</label><input type="number" value="${cfg().hi||120}" onchange="up(c=>c.hi=+this.value)"></div><div><label>Warn this many days before expiry</label><input type="number" value="${cfg().exd||60}" onchange="up(c=>c.exd=+this.value)"></div></div>`:''}<table><tr><th>Item</th><th>Unit</th><th>Balance</th><th>Reorder at</th><th>Days of stock</th><th>Turnover / yr</th><th>Status</th><th>Last count variance</th></tr>${I.map(i=>{const x=bal(i);return`<tr><td>${esc(i.n)}</td><td>${esc(i.unit)}</td><td class="${x.b<0?'er':x.b<=i.reorder?'wa':''}">${x.b} ${esc(i.uom)}</td><td>${i.reorder}</td>${tv(i)}<td>${x.v==null?'<span class="mu">no count yet</span>':`<span class="${x.v?'er':'ok'}">${x.v>0?'+':''}${x.v}</span> <small class="mu">${esc(x.vd)}</small>`}</td></tr>`}).join('')||'<tr><td colspan="8" class="mu">No items yet.</td></tr>'}</table></div>
+<div class="c"><h2>Record movement</h2><details style="margin:0 0 8px"><summary><b>Receiving checklist</b> (do this for every delivery)</summary><ol style="margin:6px 0 0"><li>Match the delivery note to the LPO number and the items ordered.</li><li>Count the quantity and check the unit price against the invoice.</li><li>Check the condition and temperature, and reject damaged items.</li><li>Copy the lot number and expiry date from the box. Do not receive expired or very short-dated stock.</li><li>Record the delivery here the same day.</li><li>Put the earliest expiry at the front of the shelf.</li></ol></details><div class="g"><div><label>Item</label><select id="mi" onchange="lotOpts()">${I.map(i=>`<option value="${i.id}">${esc(i.n)}</option>`).join('')}</select></div><div><label>Type</label><select id="mt"><option value="in">Received (delivery)</option><option value="out">Issued to bench</option><option value="waste">Discarded (expired / damaged)</option><option value="count">Physical count</option></select></div><div><label>Quantity</label><input id="mq" type="number" step="any"></div><div><label>Unit price RM (received)</label><input id="mp" type="number" step="0.01"></div><div><label>LPO no. (received)</label><input id="ml"></div><div><label>Lot no. (received)</label><input id="ln"></div><div><label>Expiry date (received)</label><input id="le" type="date"></div><div><label>Lot to use (issue / discard)</label><select id="lu"></select></div><div><label>Date</label><input id="md" type="date" value="${td}"></div><div><button class="b p" onclick="mv()">Save</button></div></div></div>${lotCard()}`+(A?`<div class="c"><h2>New stock item</h2><div class="g"><div><label>Item</label><input id="xn"></div><div><label>Unit</label><select id="xu">${units().map(u=>`<option>${esc(u.n)}</option>`).join('')}</select></div><div><label>Measure (box, kit...)</label><input id="xm"></div><div><label>Opening quantity</label><input id="xo" type="number" step="any" value="0"></div><div><label>Reorder level</label><input id="xr" type="number" step="any" value="0"></div><div><label><input id="xe" type="checkbox"> No expiry date (consumable)</label></div><div><button class="b p" onclick="ai()">Add item</button></div></div></div>`:'')}
+function ai(){const n=$('xn').value.trim();if(!n)return alert('Enter the item name.');db.collection('items').add({n,unit:$('xu').value,uom:$('xm').value,open:+$('xo').value||0,reorder:+$('xr').value||0,noexp:$('xe').checked})}
+function lotList(id){const L={};S.moves.filter(m=>m.item===id).sort((x,y)=>x.ts-y.ts).forEach(m=>{if(m.type==='in'&&m.lk){const o=L[m.lk]=L[m.lk]||{lk:m.lk,lot:m.lot,exp:m.exp,rem:0,val:0,q:0};o.rem+=m.qty;o.q+=m.qty;o.val+=m.qty*m.price}else if((m.type==='out'||m.type==='waste')&&m.lk&&L[m.lk])L[m.lk].rem-=m.qty});return Object.values(L).filter(x=>x.rem>1e-9).sort((a,b)=>(a.exp||'9999').localeCompare(b.exp||'9999'))}
+function lotRows(){const rows=[];SI().forEach(i=>{const k=stk(i);lotList(i.id).forEach(x=>{const d=x.exp?Math.ceil((new Date(x.exp)-Date.now())/864e5):null,use=k.pd==null||d==null?null:Math.min(x.rem,k.pd*Math.max(0,d));rows.push({i,x,d,pr:x.val/x.q,waste:d!=null&&d<0?x.rem:use==null?0:x.rem-use})})});return rows.sort((a,b)=>(a.x.exp||'9999').localeCompare(b.x.exp||'9999'))}
+const wasteVal=()=>S.moves.filter(m=>m.type==='waste'&&(m.date||'').slice(0,4)===String(cfg().year)).reduce((a,m)=>{const i=SI().find(x=>x.id===m.item);return i?a+m.qty*avgP(i):a},0);
+const lst=r=>r.d!=null&&r.d<0?'<span class="er">Expired</span>':r.d!=null&&r.d<=(cfg().exd||60)?'<span class="wa">Expires soon</span>'+(r.waste>=.5?`<br><small class="er">Est. waste ${R(r.waste*r.pr)}</small>`:''):r.waste>=.5?`<span class="wa">May expire unused</span><br><small>Est. waste ${R(r.waste*r.pr)}</small>`:'<span class="ok">OK</span>';
+const lotCard=()=>`<div class="c sc"><h2>Lots and expiry</h2><table><tr><th>Item</th><th>Unit</th><th>Lot</th><th>Expiry</th><th>Days left</th><th>Remaining</th><th>Value</th><th>Status</th></tr>${lotRows().map(r=>`<tr><td>${esc(r.i.n)}</td><td>${esc(r.i.unit)}</td><td>${esc(r.x.lot)}</td><td>${esc(r.x.exp)}</td><td>${r.d==null?'-':r.d}</td><td>${r.x.rem} ${esc(r.i.uom)}</td><td>${R(r.x.rem*r.pr)}</td><td>${lst(r)}</td></tr>`).join('')||'<tr><td colspan="8" class="mu">No lots yet. Enter the lot number and expiry date when you record a delivery.</td></tr>'}</table></div>`;
+function lotOpts(){const s=$('lu'),m=$('mi');if(!s||!m)return;const keep=s.value;s.innerHTML='<option value="">Auto (earliest expiry first)</option>'+lotList(m.value).map(x=>`<option value="${esc(x.lk)}">${esc(x.lot)} (exp ${esc(x.exp)}, ${x.rem} left)</option>`).join('');s.value=keep}
+async function mv(){const it=S.items.find(i=>i.id===$('mi').value),t=$('mt').value,q=+$('mq').value,p=+$('mp').value||0,ln=$('ml').value.trim(),lot=$('ln').value.trim(),exp=$('le').value,add=o=>db.collection('moves').add(o);
+if(!it||$('mq').value===''||q<0)return alert('Choose an item and enter a quantity.');
+if(t==='in'){const l=S.lpos.find(x=>x.no.toUpperCase()===ln.toUpperCase());if(!l)return alert('Enter an existing LPO number for this delivery.');if(l.unit!==it.unit)return alert('That LPO belongs to '+l.unit+', not '+it.unit+'.');if(!(p>0))return alert('Enter the unit price.');if(!it.noexp&&(!lot||!exp))return alert('This item needs a lot number and expiry date. Copy them from the box.');if(!lot!==!exp)return alert('Enter both the lot number and the expiry date, or leave both empty.');if(exp){const d=Math.ceil((new Date(exp)-new Date($('md').value||Date.now()))/864e5);if(d<0)return alert('This lot is already expired. Do not receive it. Return it to the supplier.');if(d<90&&!confirm('Short expiry: only '+d+' days left. Receive anyway?'))return}}
+if((t==='out'||t==='waste')&&q>bal(it).b)return alert('Only '+bal(it).b+' in stock. Record the delivery or do a stock count first.');
+const base={item:it.id,date:$('md').value,ts:Date.now(),by:ME};
+if(t==='in')return add({...base,type:t,qty:q,price:p,lpo:ln,lot,exp,lk:lot?lot+'|'+exp:''});
+if(t==='count')return add({...base,type:t,qty:q,price:0,lpo:'',lk:''});
+const L=lotList(it.id),pick=$('lu').value,parts=[];let left=q;
+if(pick){const x=L.find(y=>y.lk===pick);if(!x||q>x.rem+1e-9)return alert('That lot only has '+(x?x.rem:0)+' left.');parts.push([pick,q])}
+else{for(const x of L){if(left<=0)break;const u=Math.min(left,x.rem);parts.push([x.lk,u]);left-=u}if(left>0)parts.push(['',left])}
+let k=0;for(const [lk,u] of parts)await add({...base,ts:base.ts+k++,type:t,qty:u,price:0,lpo:'',lk})}
+let tmo=new Date().toISOString().slice(0,7);
+const avgP=i=>{const m=S.moves.filter(x=>x.item===i.id&&x.type==='in'),q=m.reduce((a,x)=>a+x.qty,0);return q?m.reduce((a,x)=>a+x.qty*x.price,0)/q:0};
+const inP=(d,mo)=>mo?(d||'').slice(0,7)===mo:(d||'').slice(0,4)==String(cfg().year);
+const issued=(t,mo)=>SI().filter(i=>i.test===t).reduce((a,i)=>a+S.moves.filter(m=>m.item===i.id&&m.type==='out'&&inP(m.date,mo)).reduce((b,m)=>b+m.qty,0)*avgP(i),0);
+const cnt=(t,mo)=>S.counts.filter(c=>c.test===t&&inP(c.month,mo)).reduce((a,c)=>({run:a.run+c.run,qc:a.qc+c.qc,rp:a.rp+c.rp}),{run:0,qc:0,rp:0});
+function trow(t){const m=cnt(t,tmo),y=cnt(t,null),iv=issued(t,tmo),yv=issued(t,null),r=m.run-m.qc-m.rp,yr=y.run-y.qc-y.rp;
+return`<tr><td>${esc(t)}</td><td>${R(iv)}</td><td>${m.run||(iv>0?'<span class="er">no count</span>':'-')}</td><td>${m.qc}</td><td>${m.rp}</td><td>${r}</td><td>${m.run?R(iv/m.run):'-'}</td><td><b>${r>0?R(iv/r):'-'}</b></td><td>${yr>0?R(yv/yr):'-'}</td></tr>`}
+function tests(){const T=[...new Set(SI().filter(i=>i.test).map(i=>i.test))];
+$('v').innerHTML=`<div class="c sc"><h2>Cost per test</h2><div class="g" style="margin-bottom:8px"><div><label>Month</label><input type="month" value="${tmo}" onchange="tmo=this.value||tmo;draw()"></div></div><table><tr><th>Test</th><th>Stock used</th><th>Run</th><th>QC</th><th>Repeats</th><th>Reportable</th><th>Cost / run</th><th>Cost / reportable</th><th>Year to date / reportable</th></tr>${T.map(trow).join('')||'<tr><td colspan="9" class="mu">No items are linked to a test yet. An admin can link them below.</td></tr>'}</table>
+<p class="mu">Reportable = total run - QC - repeats. Stock used = quantity issued to the bench x average price recorded on deliveries (items with no delivery price count as RM 0). Link QC and calibrator items to the same test to include their cost.</p></div>
+<div class="c"><h2>Enter monthly test counts</h2><div class="g"><div><label>Test</label><select id="ct">${T.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div><div><label>Month</label><input id="cm" type="month" value="${tmo}"></div><div><label>Total run</label><input id="cr" type="number"></div><div><label>QC runs</label><input id="cq" type="number" value="0"></div><div><label>Repeats</label><input id="cp" type="number" value="0"></div><div><button class="b p" onclick="sct()">Save</button></div></div></div>
+<div class="c"><h2>Import from spreadsheet</h2><p class="mu" style="margin:0 0 8px">Columns: test, month (or date), total run, QC, repeats. Excel, CSV or pasted cells from Excel all work. Rows for the same test and month are added together, so a daily export is fine. Test names must match the linked tests.</p><input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" onchange="pf(this)"><p style="margin:8px 0 4px">Or paste rows here:</p><textarea id="pt" rows="3" style="width:100%"></textarea><p><button class="b" onclick="prev($('pt').value)">Preview pasted rows</button> <button class="b" onclick="dl('test-counts-template.csv','test,month,total run,QC,repeats\\nHbA1c,'+tmo+',1200,60,35\\n')">Download template</button> <button class="b" onclick="rpt()">Download cost report (CSV)</button></p></div>${imp?impView():''}`+(ADMIN?`<div class="c sc"><h2>Item settings: test link and expiry</h2><table><tr><th>Item</th><th>Unit</th><th>Used for test</th><th>No expiry</th></tr>${S.items.map(i=>`<tr><td>${esc(i.n)}</td><td>${esc(i.unit)}</td><td><input value="${esc(i.test||'')}" placeholder="e.g. HbA1c" onchange="db.doc('items/${i.id}').update({test:this.value.trim()})"></td><td><input type="checkbox" ${i.noexp?'checked':''} onchange="db.doc('items/${i.id}').update({noexp:this.checked})"></td></tr>`).join('')||'<tr><td colspan="4" class="mu">Add stock items first.</td></tr>'}</table></div>`:'')}
+function sct(){const t=$('ct').value,mo=$('cm').value,run=+$('cr').value||0,qc=+$('cq').value||0,rp=+$('cp').value||0;if(!t||!mo||!run)return alert('Choose a test, month and total run.');if(qc+rp>run)return alert('QC plus repeats cannot exceed total run.');db.doc('counts/'+(mo+'_'+t).replace(/[^A-Za-z0-9]/g,'_')).set({test:t,month:mo,run,qc,rp,by:ME})}
+let imp=null;
+const nmo=v=>{v=String(v||'').trim();if(/^\d{4}-\d{1,2}/.test(v)){const p=v.split('-');return p[0]+'-'+p[1].padStart(2,'0')}const d=new Date(v);return isNaN(d)?'':d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
+function prev(txt){const sep=txt.includes('\t')?'\t':',',rows=txt.split(/\r?\n/).filter(l=>l.trim()).map(l=>l.split(sep).map(c=>c.trim().replace(/^"|"$/g,'')));
+if(!rows.length)return alert('Nothing to import.');let ix=[0,1,2,3,4];
+if(isNaN(+rows[0][2])){const h=rows.shift().map(c=>c.toLowerCase()),f=(...k)=>h.findIndex(c=>k.some(x=>c.includes(x)));ix=[f('test'),f('month','date','period'),f('run','total'),f('qc'),f('repeat','rerun')];if(ix[0]<0||ix[1]<0||ix[2]<0)return alert('Header row needs: test, month, total run, QC, repeats.')}
+const T=Object.fromEntries(SI().filter(i=>i.test).map(i=>[i.test.toLowerCase(),i.test])),agg={},out=[];
+rows.forEach(r=>{const tn=r[ix[0]]||'',t=T[tn.toLowerCase()],mo=nmo(r[ix[1]]),run=+r[ix[2]],qc=(ix[3]>=0&&+r[ix[3]])||0,rp=(ix[4]>=0&&+r[ix[4]])||0;let e='';
+if(!t)e='Test not linked to a stock item';else if(!mo)e='Month not recognised';else if(!(run>0))e='Total run missing';else if(qc+rp>run)e='QC + repeats exceed total run';
+const x={t:t||tn,mo,run,qc,rp,e};if(e)return out.push(x);const k=t+'|'+mo;if(agg[k]){agg[k].run+=run;agg[k].qc+=qc;agg[k].rp+=rp}else{agg[k]=x;out.push(x)}});
+imp=out;draw()}
+function pf(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();
+if(/\.xlsx?$/i.test(f.name)){if(!window.XLSX)return alert('Excel reading is not available. Save the sheet as CSV and try again.');r.onload=()=>{const w=XLSX.read(r.result,{type:'array'});prev(XLSX.utils.sheet_to_csv(w.Sheets[w.SheetNames[0]]))};r.readAsArrayBuffer(f)}
+else{r.onload=()=>prev(r.result);r.readAsText(f)}}
+const impView=()=>{const ok=imp.filter(x=>!x.e);return`<div class="c sc"><h2>Import preview</h2><table><tr><th>Test</th><th>Month</th><th>Run</th><th>QC</th><th>Repeats</th><th>Status</th></tr>${imp.map(x=>`<tr><td>${esc(x.t)}</td><td>${esc(x.mo)}</td><td>${x.run}</td><td>${x.qc}</td><td>${x.rp}</td><td class="${x.e?'er':'ok'}">${x.e||'OK'}</td></tr>`).join('')}</table><p>${ok.length} of ${imp.length} rows are valid. A test and month that already has a count will be overwritten.</p><button class="b p" onclick="doImp()">Import ${ok.length} rows</button> <button class="b" onclick="imp=null;draw()">Cancel</button></div>`};
+async function doImp(){const L=imp.filter(x=>!x.e);imp=null;for(const x of L)await db.doc('counts/'+(x.mo+'_'+x.t).replace(/[^A-Za-z0-9]/g,'_')).set({test:x.t,month:x.mo,run:x.run,qc:x.qc,rp:x.rp,by:ME});draw()}
+async function dl(name,data){try{const d=await claude.use('downloads');if(!d)return alert('Downloads are not available here.');await d.save({filename:name,data})}catch(e){if(!e||e.code!=='declined')alert('Download failed.')}}
+function rpt(){const T=[...new Set(SI().filter(i=>i.test).map(i=>i.test))],q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+const L=[['Test','Month','Stock used RM','Total run','QC','Repeats','Reportable','Cost per run RM','Cost per reportable RM','YTD cost per reportable RM'].join(',')];
+T.forEach(t=>{const m=cnt(t,tmo),y=cnt(t,null),iv=issued(t,tmo),r=m.run-m.qc-m.rp,yr=y.run-y.qc-y.rp;L.push([q(t),tmo,iv.toFixed(2),m.run,m.qc,m.rp,r,m.run?(iv/m.run).toFixed(2):'',r>0?(iv/r).toFixed(2):'',yr>0?(issued(t,null)/yr).toFixed(2):''].join(','))});
+dl('cost-per-test-'+tmo+'.csv',L.join('\n'))}
+let rmo=new Date().toISOString().slice(0,7);
+const pool=(n,mo)=>S.lpos.filter(l=>l.unit===n&&l.st==='Active'&&(!l.src||l.src==='budget')&&(l.date||'').slice(0,4)===String(cfg().year)&&l.date<=mo+'-31');
+const trk=(n,mo)=>pool(n,mo).reduce((a,l)=>a+val(l),0);
+const rid=(mo,n)=>mo+'_'+n.replace(/[^A-Za-z0-9]/g,'_');
+const rc=(mo,n)=>S.recon.find(r=>r.id===rid(mo,n));
+function causes(n,mo,d){const P=pool(n,mo),o=[],t=Math.abs(d);
+if(d>0){const wv=S.lpos.filter(l=>l.unit===n&&l.st==='Active'&&l.src&&l.src!=='budget'&&l.date<=mo+'-31').reduce((a,l)=>a+val(l),0);
+if(wv&&Math.abs(wv-d)<.5)o.push(`Equals this unit's warrant purchases (${R(wv)}). The official ledger may not separate warrant spending.`);
+o.push('Official is higher, so an LPO may be missing from the tracker. Ask the unit for LPOs not yet recorded.')}
+else{const nu=P.filter(l=>l.inv==null||l.inv==='');if(nu.length){const nv=nu.reduce((a,l)=>a+val(l),0);o.push(`${nu.length} LPO(s) worth ${R(nv)} have no invoice yet${Math.abs(nv-t)<.5?', which matches the difference exactly':''}. The official ledger may count only invoiced items.`)}
+for(let i=0;i<P.length;i++){if(Math.abs(val(P[i])-t)<.5)o.push(`LPO ${esc(P[i].no)} (${R(val(P[i]))}) equals the difference.`);if(P.length<80)for(let j=i+1;j<P.length;j++)if(Math.abs(val(P[i])+val(P[j])-t)<.5)o.push(`LPO ${esc(P[i].no)} + ${esc(P[j].no)} equals the difference.`)}}
+const dup=P.filter(l=>P.filter(x=>x.no.trim().toUpperCase()===l.no.trim().toUpperCase()).length>1);
+if(dup.length)o.push('Duplicate LPO numbers: '+[...new Set(dup.map(l=>esc(l.no)))].join(', '));
+return o}
+function recon(){const rows=units().map(u=>{const t=trk(u.n,rmo),r=rc(rmo,u.n);return{u,t,r,d:r?r.official-t:null}}),done=rows.filter(x=>x.r),tt=done.reduce((a,x)=>a+x.t,0),to=done.reduce((a,x)=>a+x.r.official,0);
+$('v').innerHTML=`<div class="c sc"><h2>Monthly reconciliation</h2><p class="mu" style="margin:0 0 8px">Enter the official ledger's total spending for each unit from 1 January to the end of the month. The tracker figure uses the invoice amount where there is one, otherwise the LPO amount. Normal budget only, warrants are excluded.</p>
+<div class="g" style="margin-bottom:8px"><div><label>As at end of</label><input type="month" value="${rmo}" onchange="rmo=this.value||rmo;draw()"></div><div><button class="b" onclick="rcsv()">Download (CSV)</button></div></div>
+<table><tr><th>Unit</th><th>Tracker</th><th>Official ledger</th><th>Difference</th><th>Status</th><th>Note</th></tr>${rows.map(x=>{const st=x.d==null?'<span class="mu">Not entered</span>':Math.abs(x.d)<.5?'<span class="ok">Tallied</span>':`<span class="er">${x.d>0?'Official higher':'Tracker higher'}</span>`,ch=x.r&&x.r.trk!=null&&Math.abs(x.t-x.r.trk)>.5?`<br><small class="wa">Tracker changed by ${R(x.t-x.r.trk)} since saved</small>`:'';
+return`<tr><td>${esc(x.u.n)}</td><td>${R(x.t)}</td><td><input type="number" step="0.01" style="width:120px" value="${x.r?x.r.official:''}" onchange="so('${esc(x.u.n)}',this.value)"></td><td>${x.d==null?'-':R(x.d)}</td><td>${st}${ch}</td><td><input style="width:100%;min-width:140px" value="${esc(x.r?x.r.note:'')}" onchange="sn('${esc(x.u.n)}',this.value)"></td></tr>`}).join('')}
+<tr><td><b>Total (entered units)</b></td><td><b>${R(tt)}</b></td><td><b>${R(to)}</b></td><td><b>${R(to-tt)}</b></td><td></td><td></td></tr></table></div>`+rows.filter(x=>x.d!=null&&Math.abs(x.d)>=.5).map(x=>`<div class="c"><h2>${esc(x.u.n)}: difference ${R(x.d)}</h2>${causes(x.u.n,rmo,x.d).map(c=>`<div class="al">${c}</div>`).join('')||'<span class="mu">No obvious cause found.</span>'}</div>`).join('')}
+function so(n,v){const id='recon/'+rid(rmo,n);if(v==='')return db.doc(id).delete();return db.doc(id).set({month:rmo,unit:n,official:+v,trk:trk(n,rmo),note:(rc(rmo,n)||{}).note||'',by:ME,ts:Date.now()})}
+function sn(n,v){if(!rc(rmo,n))return alert('Enter the official ledger amount first.');return db.doc('recon/'+rid(rmo,n)).update({note:v})}
+function rcsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"',L=[['Unit','As at','Tracker RM','Official RM','Difference RM','Note'].join(',')];units().forEach(u=>{const t=trk(u.n,rmo),r=rc(rmo,u.n);L.push([q(u.n),rmo,t.toFixed(2),r?r.official.toFixed(2):'',r?(r.official-t).toFixed(2):'',q(r?r.note||'':'')].join(','))});dl('reconciliation-'+rmo+'.csv',L.join('\n'))}
+function stk(i){const y=String(cfg().year),now=new Date(),cur=now.getFullYear()===+y,days=cur?Math.min(365,(now-new Date(+y,0,1))/864e5):365,b=bal(i).b,
+out=S.moves.filter(m=>m.item===i.id&&m.type==='out'&&(m.date||'').slice(0,4)===y).reduce((a,m)=>a+m.qty,0),
+w=cur?Math.min(90,days):365,from=new Date(now-w*864e5).toISOString().slice(0,10),
+rec=S.moves.filter(m=>m.item===i.id&&m.type==='out'&&(cur?m.date>=from:(m.date||'').slice(0,4)===y)).reduce((a,m)=>a+m.qty,0),
+pts=[+i.open||0];for(let m=1;m<=(cur?now.getMonth():11);m++)pts.push(bal(i,y+'-'+String(m).padStart(2,'0')+'-31').b);pts.push(b);
+const avg=pts.reduce((a,x)=>a+x,0)/pts.length,pd=w>=14?rec/w:null,dos=pd>0?b/pd:null,tn=days>=30&&avg>0?(out/days*365)/avg:null,lo=cfg().lo||14,hi=cfg().hi||120;
+const st=pd==null?'Too early':pd===0?'No usage':dos<lo?'Low':dos>hi?'Overstocked':'OK';return{dos,tn,st,pd}}
+const tv=i=>{const k=stk(i);return`<td>${k.dos==null?'-':Math.round(k.dos)}</td><td>${k.tn==null?'-':k.tn.toFixed(1)+'x'}</td><td class="${k.st==='Low'?'er':k.st==='Overstocked'?'wa':'mu'}">${k.st}</td>`};
+const elf=()=>Math.max(.05,Math.min(1,(Date.now()-new Date(cfg().year,0,1))/(new Date(cfg().year,11,31)-new Date(cfg().year,0,1))));
+const lend=u=>{const x=used(u.n);return Math.max(0,alloc(u)-Math.max(x/elf(),x)-held(u.n))};
+const resCard=()=>{const O=units().filter(u=>u.res);return O.length?`<div class="c sc"><h2>Reserve (can cover other units)</h2><table><tr><th>Unit</th><th>Allocation</th><th>Used</th><th>Projected year-end</th><th>Safe to lend</th></tr>${O.map(u=>`<tr><td>${esc(u.n)}</td><td>${R(alloc(u))}</td><td>${R(used(u.n))}</td><td>${R(used(u.n)/elf())}</td><td><b>${R(lend(u))}</b></td></tr>`).join('')}</table><p class="mu">Safe to lend = allocation minus the greater of what is spent and the projected year-end spending at the current rate. Early in the year the projection is rough.</p></div>`:''};
+function decR(id){const r=S.reqs.find(x=>x.id===id),O=units().filter(u=>u.res&&u.n!==r.unit);modal(`<h2>Cover from reserve</h2><p>${esc(r.unit)} needs <b>${R(r.amt)}</b> for LPO ${esc(r.no)}.</p><label>Take from</label><select id="rs">${O.map(u=>`<option value="${esc(u.n)}">${esc(u.n)} (safe to lend ${R(lend(u))})</option>`).join('')}</select><p style="text-align:right"><button class="b" onclick="closeM()">Cancel</button> <button class="b p" onclick="doR('${id}')">Approve</button></p>`)}
+async function doR(id){const r=S.reqs.find(x=>x.id===id),f=$('rs').value,s=units().find(u=>u.n===f);
+if(r.amt>alloc(s)-used(f))return alert(f+' only has '+R(alloc(s)-used(f))+' unspent.');
+if(r.amt>lend(s)&&!confirm('More than '+f+' can safely lend at its current spending rate ('+R(lend(s))+'). Approve anyway?'))return;
+const c=JSON.parse(JSON.stringify(cfg())),F=c.units.find(u=>u.n===f),T=c.units.find(u=>u.n===r.unit);F.top=(+F.top||0)-r.amt;T.top=(+T.top||0)+r.amt;(c.log=c.log||[]).push({d:new Date().toISOString().slice(0,10),t:`${R(r.amt)} for ${r.unit} (LPO ${r.no}) covered from reserve ${f}`});
+await db.doc('config/main').set(c);await db.doc('reqs/'+id).update({st:'Approved',src:f});
+if(S.lpos.some(l=>l.id===r.lid))await db.doc('lpos/'+r.lid).update({st:'Active',ack:true});closeM()}
+let sent=false;
+const dn=id=>{const n=names[id];return n&&n!=='User'?n:((S.members.find(x=>x.id===id)||{}).label||'User')};
+const joinView=()=>`<div class="c"><h2>Request access</h2>${sent?'<p class="ok">Request sent. Ask the PIC or HOD to approve it in the Team tab.</p>':`<p>You are signed in but not assigned to a unit yet. Enter your name and section, then send the request to the PIC or HOD.</p><div class="g"><div><label>Your name and section</label><input id="jl"></div><div><button class="b p" onclick="reqJoin()">Request access</button></div></div>`}</div>`;
+async function reqJoin(){const l=$('jl').value.trim();if(!l)return alert('Enter your name and section.');try{await db.doc('joins/'+ME).set({label:l,ts:Date.now()});sent=true;draw()}catch(e){alert('Could not send the request. Ask the PIC or HOD to assign you to a unit in the Team tab.')}}
+const pend=()=>{const P=S.joins.filter(j=>!S.members.some(m=>m.id===j.id));return P.length?`<div class="c sc"><h2>Waiting for approval</h2><table><tr><th>Person</th><th>Assign units</th><th></th></tr>${P.map(j=>`<tr><td>${esc(j.label)}</td><td>${units().map(u=>`<label style="display:inline-block;margin-right:8px"><input type="checkbox" data-j="${j.id}" value="${esc(u.n)}"> ${esc(u.n)}</label>`).join('')}</td><td><button class="b p" onclick="apJ('${j.id}')">Approve</button> <button class="b d" onclick="db.doc('joins/${j.id}').delete()">Decline</button></td></tr>`).join('')}</table></div>`:''};
+async function apJ(id){const j=S.joins.find(x=>x.id===id),u=[...document.querySelectorAll('[data-j="'+id+'"]:checked')].map(x=>x.value);if(!u.length)return alert('Tick at least one unit.');await db.doc('members/'+id).set({units:u,label:j.label});await db.doc('joins/'+id).delete()}
+let ny=false;
+const nyCard=()=>{if(!ny)return`<div class="c"><h2>New year</h2><p class="mu" style="margin:0 0 8px">Closes ${cfg().year} for vote ${APP.vote} and starts the next year. Do this once, after the December stock count, when nobody else is using the system.</p><button class="b" onclick="ny=true;draw()">Start new year...</button></div>`;
+const sp=units().map(u=>used(u.n));
+return`<div class="c sc"><h2>Start new year</h2><ol class="mu" style="margin:0 0 8px"><li>A full backup is downloaded first.</li><li>${cfg().year} LPOs, requests, reconciliations, test counts and stock movements are archived inside the database and cleared.</li><li>Stock items and lots with their balances, and unspent warrant money, carry forward. Accounts and unit assignments stay.</li></ol>
+<div class="g" style="margin-bottom:8px"><div><label>New year</label><input id="ny1" type="number" value="${cfg().year+1}"></div><div><label>New total budget (RM)</label><input id="ny2" type="number" value="${cfg().budget}" oninput="nyp()"></div></div>
+<table><tr><th>Unit</th><th>${cfg().year} spent</th><th>Share basis (RM)</th><th>Share</th><th>New allocation</th></tr>${units().map((u,i)=>`<tr><td>${esc(u.n)}${u.res?' <span class="tg">Reserve</span>':''}</td><td>${R(sp[i])}</td><td><input type="number" class="nyl" style="width:120px" value="${Math.round(sp[i])}" oninput="nyp()"></td><td class="nys"></td><td class="nya"></td></tr>`).join('')}</table>
+<p class="mu">The share basis starts as ${cfg().year} actual spending. Change it if allocations follow another rule, for example a fixed amount for a reserve.</p>
+<label><input type="checkbox" id="ny3"> I have recorded the December stock count and will keep the backup that downloads.</label>
+<p><button class="b p" onclick="nyGo()">Start new year</button> <button class="b" onclick="ny=false;draw()">Cancel</button></p></div>`};
+function nyp(){const L=[...document.querySelectorAll('.nyl')].map(x=>+x.value||0),t=L.reduce((a,x)=>a+x,0)||1,b=+$('ny2').value||0;document.querySelectorAll('.nys').forEach((e,i)=>e.textContent=(L[i]/t*100).toFixed(1)+'%');document.querySelectorAll('.nya').forEach((e,i)=>e.textContent=R(L[i]/t*b))}
+async function nyGo(){const y=+$('ny1').value,b=+$('ny2').value,L=[...document.querySelectorAll('.nyl')].map(x=>+x.value||0);
+if(!(y>2000)||!(b>0))return alert('Enter the new year and the total budget.');if(!L.some(x=>x>0))return alert('Enter the share basis amounts.');if(!$('ny3').checked)return alert('Please tick the box to confirm.');
+if(!confirm('Start '+y+'? The old records are archived and a backup downloads first.'))return;
+const a=document.createElement('a');a.href='/api/backup';a.click();await new Promise(r=>setTimeout(r,2500));
+try{await jx('/api/newyear',{year:y,budget:b,units:units().map((u,i)=>({n:u.n,last:L[i],res:!!u.res}))});ny=false;alert('New year started.');location.reload()}catch(e){alert(e.message)}}
+function modal(h){const d=document.createElement('div');d.className='m';d.id='mo';d.innerHTML='<div>'+h+'</div>';document.body.appendChild(d)}
+function closeM(){const m=$('mo');m&&m.remove()}
+(function(){const el=document.getElementById('votes'),mk=(v,l)=>v===APP.vote?'<b>'+l+'</b>':'<a href="#" onclick="setVote(\''+v+'\');return false">'+l+'</a>';el.innerHTML='Budget vote: '+mk('27403','Reagents (27403)')+' &middot; '+mk('27499','Consumables (27499)')})();
+document.getElementById('ttl').textContent='🧪 Pengurusan Patologi: Bajet';document.title='Pengurusan Patologi';
+init();
+</script></body></html>

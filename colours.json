@@ -1,0 +1,8 @@
+{
+ "_help": "Row colour (6-digit hex) -> unit name. The unit names must already exist in the tracker Setup. Colours not listed here are skipped and shown in import_review.csv.",
+ "00FFFF": "Biokimia", "66FFFF": "Biokimia", "3D85C6": "Biokimia",
+ "CCC0DA": "Hematologi", "D9D2E9": "Hematologi", "B4A7D6": "Hematologi",
+ "99FF99": "Mikrobiologi",
+ "FFFF99": "Histositologi", "FFFF00": "Histositologi",
+ "FF0000": "POCT"
+}
