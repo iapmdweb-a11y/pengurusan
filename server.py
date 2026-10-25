@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Lab Budget Tracker: intranet server. Python 3.8+ only, no extra packages.
-Run:  python server.py        (then open http://THIS-PC:8080 )"""
+Run:  python server.py        (then open http://THIS-PC:7000 )"""
 import os,json,sqlite3,secrets,hashlib,time,threading,uuid,tempfile
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from urllib.parse import urlparse,parse_qs,quote
 HERE=os.path.dirname(os.path.abspath(__file__))
-DB=os.environ.get('BUDGET_DB',os.path.join(HERE,'budget.db'));PORT=int(os.environ.get('PORT','8080'))
+DB=os.environ.get('BUDGET_DB',os.path.join(HERE,'budget.db'));PORT=int(os.environ.get('PORT','7000'))
 VOTES=('27403','27499','DOC');CUR='27403'
 MAXF=25*1024*1024
 MIMES={'pdf':'application/pdf','doc':'application/msword','docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','xls':'application/vnd.ms-excel','xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','ppt':'application/vnd.ms-powerpoint','pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','png':'image/png','jpg':'image/jpeg','jpeg':'image/jpeg','txt':'text/plain','csv':'text/csv'}
