@@ -11,8 +11,8 @@ INSTALL
    Optional shortcut for Windows: rename start-bat.txt to start.bat, then double-click it.
    (The .bat file was sent as .txt because email systems block .bat attachments.)
 3. On first run a window shows the admin username and a one-time password. Write it down.
-4. On any computer in the hospital network open:  http://SERVER-NAME-OR-IP:8080
-   (IT may need to allow port 8080 in the server firewall, or set another port: set PORT=9000 before starting.)
+4. On any computer in the hospital network open:  http://SERVER-NAME-OR-IP:7000
+   (IT may need to allow port 7000 in the server firewall, or set another port: set PORT=9000 before starting.)
 5. Sign in as admin, click "Change password" (top right), then open Accounts.
 
 ONE TRACKER, TWO VOTES (REAGENTS 27403 AND CONSUMABLES 27499)
@@ -52,7 +52,7 @@ LOADING THE EXCEL LPO SHEET (PERUNTUKAN) - runs on the server, data never leaves
 - When it looks right, load for real:
       python load_peruntukan.py PERUNTUKAN.xlsx --user admin --commit
 - Sheet 27403 goes to the Reagents vote and sheet 27499 to the Consumables vote. A row coloured for a section goes to that section. A row with Tanggungan is loaded as an LPO without an invoice. A row with Sebenar is loaded as an LPO with that invoice amount. The remarks text is kept in the Item field.
-- Running it again is safe: the same LPO is overwritten, not duplicated. Use --url http://SERVER:PORT if the tracker is not on port 8080, and --year 2027 next year.
+- Running it again is safe: the same LPO is overwritten, not duplicated. Use --url http://SERVER:PORT if the tracker is not on port 7000, and --year 2027 next year.
 - It loads LPOs only. Budgets, top-ups and stock are entered in the tracker.
 
 DOCUMENT PORTAL (ISO) - the "Dokumen ISO" link at the top
