@@ -26,12 +26,15 @@ label{display:block;font-size:12px;color:var(--mu)}
 .k{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}.k div{background:var(--bg);border-radius:8px;padding:8px}.k b{font-size:16px;display:block}
 </style></head><body><div class="w"><div id="bar" class="mu" style="text-align:right"></div><div id="votes" style="margin:0 0 8px"></div><h1 id="ttl">🧪 Pathology Lab Budget &amp; LPO Tracker</h1><div id="who" class="mu" style="margin:-6px 0 8px"></div>
 <div class="tabs" id="tabs"></div><div id="v"><div class="c">Loading…</div></div></div>
+<script>window.addEventListener('error',e=>{const v=document.getElementById('v');if(v&&/Loading/.test(v.textContent))v.innerHTML='<div class="c er">This page could not start: '+(e.message||'error')+'. Please tell IT.</div>'});
+const VOTES={'27403':{title:'Reagents Budget Tracker (Vote 27403)',vote:'27403',tests:true},'27499':{title:'Consumables Budget Tracker (Vote 27499)',vote:'27499',tests:false}};
+const VOTE=new URLSearchParams(location.search).get('vote')==='27499'?'27499':'27403';window.APP=VOTES[VOTE];window.setVote=v=>{location.search='?vote='+v};</script>
 <script src="/xlsx.full.min.js"></script>
 <script>
 /* Intranet adapter: gives the page the same db/user/downloads interface, backed by this server. */
 (function(){
 const E=id=>document.getElementById(id),subs=[];let ver=0,me=null;
-const j=async(u,o)=>{const r=await fetch(u,o&&{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});let t={};try{t=await r.json()}catch(e){}
+const j=async(u,o)=>{const r=await fetch(u+(u.includes('?')?'&':'?')+'vote='+VOTE,o&&{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});let t={};try{t=await r.json()}catch(e){}
  if(r.status===401&&u!=='/api/login'){const e=new Error('auth');e.code=401;throw e}if(!r.ok)throw new Error(t.error||'Error '+r.status);return t};
 const refresh=async()=>{for(const f of subs)try{await f()}catch(e){}};
 setInterval(async()=>{try{const v=(await j('/api/ver')).v;if(v!==ver){ver=v;refresh()}}catch(e){if(e.code===401)location.reload()}},3000);
@@ -47,20 +50,19 @@ window.claude={use:async n=>{
  if(n==='downloads')return{save:async({filename,data})=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data]));a.download=filename;a.click();return{status:'saved'}}};
  if(n==='user'){try{me=await j('/api/me')}catch(e){loginUI();return new Promise(()=>{})}
   if(me.role==='staff'){location.replace('/docs');return new Promise(()=>{})}
-  E('bar').innerHTML=me.name+' &middot; <a href="/docs">Dokumen ISO</a> &middot; <a href="#" onclick="chpw();return false">Change password</a> &middot; <a href="#" onclick="outx();return false">Sign out</a>';return U}}};
+  E('bar').innerHTML=me.name+' &middot; <a href="/docs">Dokumen ISO</a> &middot; <a href="/handbook">Panduan &amp; Memo</a> &middot; <a href="#" onclick="chpw();return false">Change password</a> &middot; <a href="#" onclick="outx();return false">Sign out</a>';return U}}};
 window.jx=j;window.outx=async()=>{await j('/api/logout',{});location.reload()};
 window.chpw=async()=>{const o=prompt('Current password'),n=o&&prompt('New password (8 or more characters)');if(!n)return;try{await j('/api/password',{old:o,new:n});alert('Password changed.')}catch(e){alert(e.message)}};
 window.acct=async function(){const us=(await j('/api/users')).users;
  E('v').innerHTML=`<div class="c sc"><h2>Accounts</h2><table><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr>${us.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${u.role==='admin'?'Admin (PIC / HOD)':u.role==='staff'?'Staff (documents only)':'Unit head'}</td><td>${u.active?'<span class="ok">Active</span>':'<span class="er">Disabled</span>'}</td><td><button class="b" onclick="acr('${u.id}')">Reset password</button> <button class="b d" onclick="acs('${u.id}',${u.active?0:1})">${u.active?'Disable':'Enable'}</button></td></tr>`).join('')}</table></div>
  <div class="c"><h2>New account</h2><div class="g"><div><label>Full name</label><input id="an"></div><div><label>Username</label><input id="au"></div><div><label>Temporary password (8+)</label><input id="ap"></div><div><label>Role</label><select id="ar"><option value="user">Unit head</option><option value="staff">Staff (documents only)</option><option value="admin">Admin (PIC / HOD)</option></select></div><div><button class="b p" onclick="acn()">Create</button></div></div>
  <p class="mu">After creating a unit head, open the Team tab, search for the name and tick their units.</p></div>
- <div class="c"><h2>Backup</h2><p class="mu" style="margin:0 0 8px">Downloads a full copy of all data. Keep copies somewhere safe.</p><a class="b" href="/api/backup" style="text-decoration:none;display:inline-block">Download backup</a> <a class="b" href="/api/export" style="text-decoration:none;display:inline-block">Export data file (keep inside the hospital)</a></div>`};
+ <div class="c"><h2>Backup</h2><p class="mu" style="margin:0 0 8px">Downloads a full copy of all data. Keep copies somewhere safe.</p><a class="b" href="/api/backup" style="text-decoration:none;display:inline-block">Download backup</a> <a class="b" href="/api/export?vote=${VOTE}" style="text-decoration:none;display:inline-block">Export data file (keep inside the hospital)</a></div>`};
 window.acn=async()=>{try{await j('/api/users',{action:'create',name:E('an').value,username:E('au').value,password:E('ap').value,role:E('ar').value});acct()}catch(e){alert(e.message)}};
 window.acr=async id=>{const p=prompt('New password for this person (8 or more characters)');if(!p)return;try{await j('/api/users',{action:'reset',id,password:p});alert('Password reset. They are signed out.')}catch(e){alert(e.message)}};
 window.acs=async(id,a)=>{try{await j('/api/users',{action:'active',id,active:a});acct()}catch(e){alert(e.message)}};
 })();
 </script>
-<script>window.APP=__APP_JSON__;</script>
 <script>
 const $=id=>document.getElementById(id);
 const R=n=>'RM '+(+n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});

@@ -11,8 +11,8 @@ INSTALL
    Optional shortcut for Windows: rename start-bat.txt to start.bat, then double-click it.
    (The .bat file was sent as .txt because email systems block .bat attachments.)
 3. On first run a window shows the admin username and a one-time password. Write it down.
-4. On any computer in the hospital network open:  http://SERVER-NAME-OR-IP:7000
-   (IT may need to allow port 7000 in the server firewall, or set another port: set PORT=9000 before starting.)
+4. On any computer in the hospital network open:  http://SERVER-NAME-OR-IP:8080
+   (IT may need to allow port 8080 in the server firewall, or set another port: set PORT=9000 before starting.)
 5. Sign in as admin, click "Change password" (top right), then open Accounts.
 
 ONE TRACKER, TWO VOTES (REAGENTS 27403 AND CONSUMABLES 27499)
@@ -52,20 +52,37 @@ LOADING THE EXCEL LPO SHEET (PERUNTUKAN) - runs on the server, data never leaves
 - When it looks right, load for real:
       python load_peruntukan.py PERUNTUKAN.xlsx --user admin --commit
 - Sheet 27403 goes to the Reagents vote and sheet 27499 to the Consumables vote. A row coloured for a section goes to that section. A row with Tanggungan is loaded as an LPO without an invoice. A row with Sebenar is loaded as an LPO with that invoice amount. The remarks text is kept in the Item field.
-- Running it again is safe: the same LPO is overwritten, not duplicated. Use --url http://SERVER:PORT if the tracker is not on port 7000, and --year 2027 next year.
+- Running it again is safe: the same LPO is overwritten, not duplicated. Use --url http://SERVER:PORT if the tracker is not on port 8080, and --year 2027 next year.
 - It loads LPOs only. Budgets, top-ups and stock are entered in the tracker.
 
 DOCUMENT PORTAL (ISO) - the "Dokumen ISO" link at the top
 - A controlled register of laboratory documents: quality manual, policies, SOPs, work instructions, forms, external documents and memos. It is shared by the whole laboratory (it does not depend on the budget vote).
 - Accounts: create a login for every staff member under Accounts. Role "Staff (documents only)" sees only the document portal. Unit heads and admins can use it as well.
-- Admins (PIC / HOD) add documents: document number, title, category, section, version, effective date, how often to review (default 24 months), owner, keywords and the file (PDF, Word, Excel, PowerPoint, image, txt or csv, up to 25 MB). Tick "Important" to highlight a document. A new document starts as Draft. Staff cannot see drafts.
+- Admins (PIC / HOD) add documents: document number, title, category, section, version, effective date, how often to review (default 24 months), owner, keywords and the file (PDF, Word, Excel, PowerPoint, image, txt or csv, up to 200 MB). Tick "Important" to highlight a document. A new document starts as Draft. Staff cannot see drafts.
 - "Approve" makes it visible to staff and turns the earlier approved version of the same document number into Obsolete. Obsolete versions are kept for the record but staff cannot open them. "New version" copies the details and asks for the next version number and the new file.
 - Staff press "I have read this" on each approved version. Admins see "Read by X/Y" and can list who has not read it.
 - Admins get alerts for documents whose review date is overdue or within 60 days.
 - Search by number, title, category, section or keywords. The microphone button gives voice search; on a plain http address Chrome blocks the microphone unless the server address is allowed under "Insecure origins treated as secure" in chrome://flags.
 - "Download master list (CSV)" gives the register of documents with version, status, effective and review dates.
 - Files are stored inside budget.db, so the daily copy of budget.db backs up the documents as well. Expect it to grow.
-- The search looks at the document details, not the text inside the files.
+- Search looks at the document details. The button "Search inside files" also reads the text inside PDF files (see PDF SEARCH below).
+
+PANDUAN & MEMO - handbooks, library and memos (the "Panduan & Memo" link at the top)
+- Hospital staff (wards, clinics) open /handbook with no sign-in and see: Handbooks, Memos and Supplements meant for the hospital.
+- Lab staff sign in ("Lab staff sign in" at the top right) and also see: Library (lab staff only) and Memos (lab staff only). These are kept separate from the hospital memos and are never shown to visitors who have not signed in.
+- Only admins (PIC / HOD) upload. The Upload button asks which section the file goes into. Memos can be marked Important and are highlighted. Supplements (videos in mp4 or webm, diagrams, images) have their own section, and the admin chooses whether a supplement is for hospital staff or lab staff only.
+- "Edit hospital name and contact" (admin) sets the name and contact shown at the top, so the same program can be used in other hospitals. In the same box the admin can choose whether hospital staff need to sign in. If "sign-in required" is chosen, nobody sees any handbook or memo without logging in.
+- Search finds words in titles and inside PDF files, and opens the PDF at the right page. The microphone button gives voice search (see the Chrome note under the document portal).
+- Files up to 200 MB. Videos can be skipped forward and back.
+- Create a login for every lab staff member under Accounts (role "Staff (documents only)").
+
+PDF SEARCH
+- The text of a PDF is read once, when it is uploaded. PDFs uploaded before this version are not searchable: delete and upload them again.
+- The built-in reader works for normal PDFs (Word, LibreOffice, most exports). A scanned PDF that is only a picture has no text to read, and the page tells the admin so after uploading. To read scans, the PDF would need to be run through OCR first.
+- Optional: if IT can run "pip install pypdf", the program uses it automatically for better reading. It works without it.
+
+IF A PAGE STAYS ON "Loading..."
+- The page now shows an error message instead. Send that message to IT. Check that all files from the zip (including docs.html, handbook.html and pdftext.py) were copied, that the browser address matches the port in use, and press Ctrl+F5 to reload.
 
 UPDATING AN EXISTING INSTALLATION
 - Stop the program, replace server.py and index.html with the new ones, start it again. Do NOT replace or delete budget.db. Copy budget.db first as a precaution.

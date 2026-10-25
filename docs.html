@@ -24,8 +24,9 @@ label{display:block;font-size:12px;color:var(--mu)}
 .m{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
 .m>div{background:var(--cd);border-radius:10px;padding:16px;max-width:420px;width:100%}
 .k{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}.k div{background:var(--bg);border-radius:8px;padding:8px}.k b{font-size:16px;display:block}
-</style></head><body><div class="w"><div style="display:flex;justify-content:space-between;flex-wrap:wrap" class="mu"><span><b>Pengurusan Patologi</b> &middot; <span id="lnk"><a href="/">Bajet</a> &middot; </span><b>Dokumen ISO</b></span><span id="bar"></span></div><h1>📄 Dokumen ISO</h1><div id="v"><div class="c">Loading…</div></div></div>
+</style></head><body><div class="w"><div style="display:flex;justify-content:space-between;flex-wrap:wrap" class="mu"><span><b>Pengurusan Patologi</b> &middot; <span id="lnk"><a href="/">Bajet</a> &middot; </span><b>Dokumen ISO</b> &middot; <a href="/handbook">Panduan &amp; Memo</a></span><span id="bar"></span></div><h1>📄 Dokumen ISO</h1><div id="v"><div class="c">Loading…</div></div></div>
 <script>
+window.addEventListener('error',e=>{const v=document.getElementById('v');if(v&&/Loading/.test(v.textContent))v.innerHTML='<div class="c er">This page could not start: '+(e.message||'error')+'. Please tell IT.</div>'});
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function j(u,o){const r=await fetch(u+(u.includes('?')?'&':'?')+'vote=DOC',o&&{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});let t={};try{t=await r.json()}catch(e){}if(r.status===401){const e=new Error('auth');e.code=401;throw e}if(!r.ok)throw new Error(t.error||'Error '+r.status);return t}
 const CATS=['Quality Manual','Policy','SOP','Work Instruction','Form','External Document','Memo','Other'],SECS=['All sections','Biokimia','Hematologi','Mikrobiologi','Histositologi','Bank Darah','POCT','Pengurusan'];
@@ -46,12 +47,12 @@ function draw(){const A=me.canEdit,al=[],ap=D.filter(d=>d.status==='Approved');
  if(A)ap.forEach(d=>{const n=dleft(d.review);if(n<0)al.push(['e',`${esc(d.no)} v${esc(d.ver)} "${esc(d.title)}": review overdue by ${-n} days.`]);else if(n<=60)al.push(['w',`${esc(d.no)} v${esc(d.ver)} "${esc(d.title)}": review due in ${n} days (${esc(d.review)}).`])});
  const unr=ap.filter(d=>!acked(d)).length,sel=(arr,cur,fn)=>arr.map(c=>`<option ${cur===c?'selected':''}>${c}</option>`).join('');
  $('v').innerHTML=(form?formCard():'')+(al.length?`<div class="c"><h2>Reviews due</h2>${al.map(x=>`<div class="al ${x[0]}">${x[1]}</div>`).join('')}</div>`:'')+(unr?`<div class="al i"><b>${unr}</b> approved document(s) not marked as read by you yet.</div>`:'')+
- `<div class="c"><div class="g"><div style="grid-column:span 2"><label>Search (number, title, keywords)</label><div style="display:flex;gap:6px"><input id="qs" value="${esc(F.q)}" oninput="F.q=this.value;list()" style="flex:1"><button class="b" onclick="mic()" title="Voice search">🎤</button></div></div>
- <div><label>Category</label><select onchange="F.cat=this.value;list()"><option value="">All</option>${sel(CATS,F.cat)}</select></div><div><label>Section</label><select onchange="F.sec=this.value;list()"><option value="">All</option>${sel(SECS,F.sec)}</select></div>
- ${A?`<div><label>Status</label><select onchange="F.st=this.value;list()">${['Approved','Draft','Obsolete',''].map(s=>`<option value="${s}" ${F.st===s?'selected':''}>${s||'All'}</option>`).join('')}</select></div>`:''}
- <div><label><input type="checkbox" ${F.unread?'checked':''} onchange="F.unread=this.checked;list()"> Not read yet</label></div></div>
- ${A?`<p style="margin:8px 0 0"><button class="b p" onclick="form={ver:1};draw()">Add document</button> <button class="b" onclick="csv()">Download master list (CSV)</button></p>`:''}</div><div class="c sc" id="lst"></div>`;list()}
-function list(){const q=F.q.toLowerCase().split(/\s+/).filter(Boolean);
+ `<div class="c"><div class="g"><div style="grid-column:span 2"><label>Search (number, title, keywords)</label><div style="display:flex;gap:6px"><input id="qs" value="${esc(F.q)}" oninput="F.q=this.value;showList()" style="flex:1"><button class="b" onclick="mic()" title="Voice search">🎤</button><button class="b" onclick="inside()">Search inside files</button></div><div id="ins"></div></div>
+ <div><label>Category</label><select onchange="F.cat=this.value;showList()"><option value="">All</option>${sel(CATS,F.cat)}</select></div><div><label>Section</label><select onchange="F.sec=this.value;showList()"><option value="">All</option>${sel(SECS,F.sec)}</select></div>
+ ${A?`<div><label>Status</label><select onchange="F.st=this.value;showList()">${['Approved','Draft','Obsolete',''].map(s=>`<option value="${s}" ${F.st===s?'selected':''}>${s||'All'}</option>`).join('')}</select></div>`:''}
+ <div><label><input type="checkbox" ${F.unread?'checked':''} onchange="F.unread=this.checked;showList()"> Not read yet</label></div></div>
+ ${A?`<p style="margin:8px 0 0"><button class="b p" onclick="addDoc()">Add document</button> <button class="b" onclick="csv()">Download master list (CSV)</button></p>`:''}</div><div class="c sc" id="lst"></div>`;showList()}
+function showList(){const q=F.q.toLowerCase().split(/\s+/).filter(Boolean);
  const R=D.filter(d=>(!F.st||d.status===F.st)&&(!F.cat||d.cat===F.cat)&&(!F.sec||d.sec===F.sec)&&q.every(w=>(d.no+' '+d.title+' '+d.cat+' '+d.sec+' '+(d.keywords||'')).toLowerCase().includes(w))&&(!F.unread||(d.status==='Approved'&&!acked(d))))
   .sort((a,b)=>(b.imp?1:0)-(a.imp?1:0)||a.no.localeCompare(b.no)||b.ver-a.ver);
  $('lst').innerHTML=`<table><tr><th>Doc no.</th><th>Title</th><th>Category</th><th>Section</th><th>Ver.</th><th>Effective</th><th>Review due</th><th>Status</th><th></th></tr>${R.map(row).join('')||'<tr><td colspan="9" class="mu">No documents found.</td></tr>'}</table>`}
@@ -67,6 +68,8 @@ async function appr(id){const d=D.find(x=>x.id===id);if(!confirm('Approve '+d.no
 async function obs(id){if(!confirm('Mark this version obsolete?'))return;await j('/api/doc',{op:'update',path:'isodocs/'+id,data:{status:'Obsolete',obsoleteOn:today()}});load()}
 async function del(id){if(!confirm('Delete this draft and its file?'))return;await j('/api/doc',{op:'delete',path:'isodocs/'+id,data:{}});load()}
 function who(id){const d=D.find(x=>x.id===id),miss=U.filter(u=>!K.some(k=>k.doc===id&&k.uid===u.id)).map(u=>u.name);alert(d.no+' v'+d.ver+'\n\nNot yet read ('+miss.length+'):\n'+(miss.join('\n')||'nobody'))}
+function addDoc(){form={ver:1};draw()}
+function cancelForm(){form=null;load()}
 function nv(id){const d=D.find(x=>x.id===id);form={no:d.no,title:d.title,cat:d.cat,sec:d.sec,ver:Math.max(...D.filter(x=>x.no===d.no).map(x=>+x.ver))+1,months:d.months||24,owner:d.owner||'',keywords:d.keywords||'',imp:!!d.imp};draw()}
 const formCard=()=>{const f=form;return `<div class="c"><h2>${f.ver>1?'New version':'Add document'}</h2><div class="g">
 <div><label>Document no.</label><input id="f_no" value="${esc(f.no||'')}" ${f.ver>1?'readonly':''}></div><div style="grid-column:span 2"><label>Title</label><input id="f_ti" value="${esc(f.title||'')}" style="width:100%"></div>
@@ -76,7 +79,7 @@ const formCard=()=>{const f=form;return `<div class="c"><h2>${f.ver>1?'New versi
 <div style="grid-column:span 2"><label>What changed</label><input id="f_ch" style="width:100%"></div><div><label>File (PDF, Word, Excel...)</label><input id="f_fi" type="file"></div></div>
 <datalist id="cats">${CATS.map(c=>`<option>${c}</option>`).join('')}</datalist><datalist id="secs">${SECS.map(c=>`<option>${c}</option>`).join('')}</datalist>
 <p><label><input id="f_im" type="checkbox" ${f.imp?'checked':''}> Important (highlight)</label> &nbsp; <label><input id="f_ap" type="checkbox"> Approve now</label></p>
-<p><button class="b p" id="f_sv" onclick="save()">Save</button> <button class="b" onclick="form=null;load()">Cancel</button></p></div>`};
+<p><button class="b p" id="f_sv" onclick="save()">Save</button> <button class="b" onclick="cancelForm()">Cancel</button></p></div>`};
 async function save(){const g=i=>$(i).value.trim(),no=g('f_no'),ti=g('f_ti'),ve=+g('f_ve'),fi=$('f_fi').files[0];
  if(!no||!ti||!(ve>0))return alert('Enter the document number, title and version.');if(!fi)return alert('Choose the file to upload.');
  if(D.some(x=>x.no===no&&+x.ver===ve))return alert('That version already exists. Use a higher version number.');
@@ -88,5 +91,8 @@ async function save(){const g=i=>$(i).value.trim(),no=g('f_no'),ti=g('f_ti'),ve=
 function csv(){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"',L=[['Doc no','Title','Category','Section','Version','Status','Effective','Review due','Owner','Approved on'].join(',')];
  D.slice().sort((a,b)=>a.no.localeCompare(b.no)||b.ver-a.ver).forEach(d=>L.push([d.no,d.title,d.cat,d.sec,d.ver,d.status,d.effective,d.review,d.owner,d.approvedOn].map(q).join(',')));
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+L.join('\r\n')],{type:'text/csv'}));a.download='master-list-'+today()+'.csv';a.click()}
-function mic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return alert('Voice search is not supported in this browser.');const r=new SR();r.lang='ms-MY';r.onresult=e=>{F.q=e.results[0][0].transcript;$('qs').value=F.q;list()};r.onerror=e=>alert('Voice search could not start ('+e.error+'). On a plain http address the browser may block the microphone.');r.start()}
+async function inside(){const q=$('qs').value.trim();if(q.length<2)return alert('Type at least two letters.');
+ const r=(await j('/api/hsearch?scope=iso&q='+encodeURIComponent(q))).results;
+ $('ins').innerHTML=r.length?r.map(x=>`<div class="al i" style="margin-top:6px"><b>${esc(x.label)}</b> ${esc(x.title)} &middot; page ${x.page}<br><span class="mu">&hellip;${esc(x.snippet)}&hellip;</span><br><a class="b" href="/api/file?id=${x.fid}&vote=DOC#page=${x.page}" target="_blank" style="text-decoration:none">Open at page ${x.page}</a></div>`).join(''):'<div class="mu" style="margin-top:6px">Nothing found inside the files.</div>'}
+function mic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return alert('Voice search is not supported in this browser.');const r=new SR();r.lang='ms-MY';r.onresult=e=>{F.q=e.results[0][0].transcript;$('qs').value=F.q;showList()};r.onerror=e=>alert('Voice search could not start ('+e.error+'). On a plain http address the browser may block the microphone.');r.start()}
 boot();</script></body></html>

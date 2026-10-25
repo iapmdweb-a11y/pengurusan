@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
 """Lab Budget Tracker: intranet server. Python 3.8+ only, no extra packages.
-Run:  python server.py        (then open http://THIS-PC:7000 )"""
-import os,json,sqlite3,secrets,hashlib,time,threading,uuid,tempfile
+Run:  python server.py        (then open http://THIS-PC:8080 )"""
+import re,os,json,sqlite3,secrets,hashlib,time,threading,uuid,tempfile
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from urllib.parse import urlparse,parse_qs,quote
 HERE=os.path.dirname(os.path.abspath(__file__))
-DB=os.environ.get('BUDGET_DB',os.path.join(HERE,'budget.db'));PORT=int(os.environ.get('PORT','7000'))
+import sys;sys.path.insert(0,HERE)
+try:
+    from pdftext import pages as pdf_pages
+except Exception:
+    pdf_pages=lambda d:[]
+DB=os.environ.get('BUDGET_DB',os.path.join(HERE,'budget.db'));PORT=int(os.environ.get('PORT','8080'))
 VOTES=('27403','27499','DOC');CUR='27403'
-MAXF=25*1024*1024
-MIMES={'pdf':'application/pdf','doc':'application/msword','docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','xls':'application/vnd.ms-excel','xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','ppt':'application/vnd.ms-powerpoint','pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','png':'image/png','jpg':'image/jpeg','jpeg':'image/jpeg','txt':'text/plain','csv':'text/csv'}
+MAXF=200*1024*1024
+MIMES={'pdf':'application/pdf','doc':'application/msword','docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','xls':'application/vnd.ms-excel','xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','ppt':'application/vnd.ms-powerpoint','pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','png':'image/png','jpg':'image/jpeg','jpeg':'image/jpeg','txt':'text/plain','csv':'text/csv','mp4':'video/mp4','webm':'video/webm'}
 COOKIE=f'sid{PORT}'
 LK=threading.RLock();con=sqlite3.connect(DB,check_same_thread=False);con.row_factory=sqlite3.Row
 con.executescript('''CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,username TEXT UNIQUE,name TEXT,role TEXT,salt TEXT,pw TEXT,active INTEGER DEFAULT 1,fails INTEGER DEFAULT 0,locked REAL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,uid TEXT,exp REAL);
 CREATE TABLE IF NOT EXISTS docs(path TEXT PRIMARY KEY,data TEXT);
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY,v INTEGER);
+CREATE TABLE IF NOT EXISTS filetext(fid TEXT,page INTEGER,text TEXT);
+CREATE INDEX IF NOT EXISTS ft_fid ON filetext(fid);
 CREATE TABLE IF NOT EXISTS files(id TEXT PRIMARY KEY,name TEXT,mime TEXT,size INTEGER,data BLOB,ts REAL,uid TEXT);
 INSERT OR IGNORE INTO meta VALUES('ver',1);''')
 def hpw(pw,salt):return hashlib.pbkdf2_hmac('sha256',pw.encode(),bytes.fromhex(salt),200000).hex()
@@ -34,7 +41,8 @@ def allcol(c):
 def units_of(uid):return (getdoc('members/'+uid) or {}).get('units',[])
 def vis(u,col,pid,d):
     if u['role']=='admin':return True
-    if u['role']=='staff' and col not in('isodocs','isoacks'):return False
+    if u['role']=='staff' and col not in('isodocs','isoacks','handbook','site'):return False
+    if col in('handbook','site'):return True
     if col=='isodocs':return d.get('status')=='Approved'
     if col=='isoacks':return pid.startswith(u['id']+'_')
     m=units_of(u['id'])
@@ -112,6 +120,24 @@ class H(BaseHTTPRequestHandler):
         self.send_response(code);self.send_header('Content-Type',ctype);self.send_header('Content-Length',str(len(b)));self.send_header('Cache-Control','no-store')
         for k,v in (extra or {}).items():self.send_header(k,v)
         self.end_headers();self.wfile.write(b)
+    def send_file(self,name,mime,data):
+        inl=mime in('application/pdf','image/png','image/jpeg','video/mp4','video/webm');n=len(data);code=200
+        hd={'Accept-Ranges':'bytes','Content-Disposition':('inline' if inl else 'attachment')+"; filename*=UTF-8''"+quote(name),'X-Content-Type-Options':'nosniff'}
+        m=re.match(r'bytes=(\d*)-(\d*)',self.headers.get('Range') or '')
+        if m and (m.group(1) or m.group(2)):
+            a=int(m.group(1)) if m.group(1) else max(0,n-int(m.group(2)));b=min(int(m.group(2)),n-1) if (m.group(1) and m.group(2)) else n-1
+            if a<=b:data=data[a:b+1];code=206;hd['Content-Range']='bytes %d-%d/%d'%(a,b,n)
+        self.send(bytes(data),code=code,ctype=mime,extra=hd)
+    def hsearch(self,qs,items):
+        terms=[w for w in re.split(r'\s+',qs.lower().strip()) if len(w)>=2][:6];res=[]
+        if not terms:return res
+        for fid,page,text in con.execute('SELECT fid,page,text FROM filetext'):
+            it=items.get(fid)
+            if not it:continue
+            low=text.lower()
+            if all(t in low for t in terms):
+                k=low.find(terms[0]);st=max(0,k-70);res.append({**it,'page':page,'snippet':text[st:k+110],'hits':sum(low.count(t) for t in terms)})
+        res.sort(key=lambda r:-r['hits']);return res[:60]
     def user(self):
         c=dict(x.strip().split('=',1) for x in self.headers.get('Cookie','').split(';') if '=' in x);t=c.get(COOKIE)
         if not t:return None
@@ -127,6 +153,7 @@ class H(BaseHTTPRequestHandler):
         try:
             u=urlparse(self.path);p=u.path;q=parse_qs(u.query);CUR=q.get('vote',['27403'])[0];CUR=CUR if CUR in VOTES else '27403'
             if m=='GET' and p in('/','/index.html'):return self.send(open(os.path.join(HERE,'index.html'),'rb').read(),ctype='text/html; charset=utf-8')
+            if m=='GET' and p in('/handbook','/panduan'):return self.send(open(os.path.join(HERE,'handbook.html'),'rb').read(),ctype='text/html; charset=utf-8')
             if m=='GET' and p=='/docs':return self.send(open(os.path.join(HERE,'docs.html'),'rb').read(),ctype='text/html; charset=utf-8')
             if m=='GET' and p=='/xlsx.full.min.js':
                 f=os.path.join(HERE,'xlsx.full.min.js')
@@ -141,22 +168,44 @@ class H(BaseHTTPRequestHandler):
                 con.execute('INSERT INTO sessions VALUES(?,?,?)',(t,r['id'],time.time()+12*3600));con.execute('DELETE FROM sessions WHERE exp<?',(time.time(),));con.commit()
                 return self.send({'ok':1},extra={'Set-Cookie':f'{COOKIE}={t}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200'})
             us=self.user()
+            if p in('/api/pub','/api/pubfile','/api/pubsearch') and m=='GET':
+                CUR='DOC';site=getdoc('site/main') or {}
+                if us is None and site.get('public') is False:return self.send({'error':'Sign in required.'},401)
+                hosp={i:d for i,d in allcol('handbook') if d.get('aud')=='hospital' and d.get('file')}
+                if p=='/api/pub':return self.send({'site':{k:site.get(k) for k in('hospital','contact','public')},'items':[{'id':i,**d} for i,d in hosp.items()]})
+                if p=='/api/pubfile':
+                    fid=q.get('id',[''])[0];r=con.execute('SELECT name,mime,data FROM files WHERE id=?',(fid,)).fetchone()
+                    if not r or not any(d['file']['id']==fid for d in hosp.values()):return self.send({'error':'Not found'},404)
+                    return self.send_file(r['name'],r['mime'],r['data'])
+                return self.send({'results':self.hsearch(q.get('q',[''])[0],{d['file']['id']:dict(id=i,title=d.get('title'),label=d.get('kind'),kind=d.get('kind'),fid=d['file']['id']) for i,d in hosp.items()})})
             if not us:return self.send({'error':'Sign in required.'},401)
+            if p=='/api/hsearch' and m=='GET':
+                CUR='DOC';items={}
+                if q.get('scope',['handbook'])[0]=='iso':
+                    for i,d in allcol('isodocs'):
+                        if d.get('file') and (us['role']=='admin' or d.get('status')=='Approved'):items[d['file']['id']]=dict(id=i,title=d.get('title'),label=d.get('no'),kind='ISO',fid=d['file']['id'])
+                else:
+                    for i,d in allcol('handbook'):
+                        if d.get('file'):items[d['file']['id']]=dict(id=i,title=d.get('title'),label=d.get('kind'),kind=d.get('kind'),fid=d['file']['id'])
+                return self.send({'results':self.hsearch(q.get('q',[''])[0],items)})
             if p=='/api/upload' and m=='POST':
                 if us['role']!='admin':return self.send({'error':'Admin only.'},403)
                 n=int(self.headers.get('Content-Length') or 0);nm=q.get('name',['file'])[0][:200];ext=nm.rsplit('.',1)[-1].lower() if '.' in nm else ''
                 if ext not in MIMES:return self.send({'error':'File type not allowed. Use PDF, Word, Excel, PowerPoint, image, txt or csv.'},400)
                 if n<=0 or n>MAXF:return self.send({'error':'The file is empty or larger than 25 MB.'},400)
-                fid=uuid.uuid4().hex;con.execute('INSERT INTO files VALUES(?,?,?,?,?,?,?)',(fid,nm,MIMES[ext],n,self.rfile.read(n),time.time(),us['id']));con.commit()
-                return self.send({'id':fid,'name':nm,'size':n})
+                fid=uuid.uuid4().hex;raw=self.rfile.read(n);con.execute('INSERT INTO files VALUES(?,?,?,?,?,?,?)',(fid,nm,MIMES[ext],n,raw,time.time(),us['id']))
+                pg=pdf_pages(raw) if ext=='pdf' else []
+                for i,t in enumerate(pg,1):
+                    if t:con.execute('INSERT INTO filetext VALUES(?,?,?)',(fid,i,t))
+                con.commit();return self.send({'id':fid,'name':nm,'size':n,'pages':len(pg),'chars':sum(len(t) for t in pg)})
             if p=='/api/file' and m=='GET':
                 r=con.execute('SELECT name,mime,data FROM files WHERE id=?',(q.get('id',[''])[0],)).fetchone()
                 if not r:return self.send({'error':'Not found'},404)
                 if us['role']!='admin':
                     CUR='DOC'
-                    if not any(d.get('file',{}).get('id')==q['id'][0] and d.get('status')=='Approved' for _,d in allcol('isodocs')):return self.send({'error':'Not allowed.'},403)
-                inl=r['mime'] in('application/pdf','image/png','image/jpeg')
-                return self.send(bytes(r['data']),ctype=r['mime'],extra={'Content-Disposition':('inline' if inl else 'attachment')+"; filename*=UTF-8''"+quote(r['name']),'X-Content-Type-Options':'nosniff'})
+                    fid=q['id'][0]
+                    if not (any(d.get('file',{}).get('id')==fid and d.get('status')=='Approved' for _,d in allcol('isodocs')) or any(d.get('file',{}).get('id')==fid for _,d in allcol('handbook'))):return self.send({'error':'Not allowed.'},403)
+                return self.send_file(r['name'],r['mime'],r['data'])
             if p=='/api/logout':
                 con.execute('DELETE FROM sessions WHERE uid=?',(us['id'],));con.commit();return self.send({'ok':1},extra={'Set-Cookie':f'{COOKIE}=; Max-Age=0; Path=/'})
             if p=='/api/me':return self.send({'id':us['id'],'name':us['name'],'canEdit':us['role']=='admin','role':us['role'],'username':us['username']})
@@ -180,7 +229,8 @@ class H(BaseHTTPRequestHandler):
                 if not may(us,path,op,d,old):return self.send({'error':'You are not allowed to do that.'},403)
                 if op=='delete':
                     con.execute('DELETE FROM docs WHERE path=?',(CUR+':'+path,))
-                    if path.startswith('isodocs/') and old and old.get('file'):con.execute('DELETE FROM files WHERE id=?',(old['file']['id'],))
+                    if path.split('/')[0] in('isodocs','handbook') and old and old.get('file'):
+                        con.execute('DELETE FROM files WHERE id=?',(old['file']['id'],));con.execute('DELETE FROM filetext WHERE fid=?',(old['file']['id'],))
                 else:
                     new=({**(old or {}),**d} if op=='update' else d);con.execute('INSERT OR REPLACE INTO docs VALUES(?,?)',(CUR+':'+path,json.dumps(new)))
                 con.commit();bump();return self.send({'id':path.split('/')[1]})

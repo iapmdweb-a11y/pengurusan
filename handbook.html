@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pengurusan Patologi: Panduan &amp; Memo</title>
+<style>
+:root{--bg:#f6f7f9;--cd:#fff;--tx:#1c2430;--mu:#667085;--bd:#e2e6ec;--ac:#0f766e;--wa:#b45309;--er:#b91c1c;--ok:#15803d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--cd:#1b222b;--tx:#e8ecf1;--mu:#98a2b3;--bd:#2c3642;--ac:#2dd4bf;--wa:#fbbf24;--er:#f87171;--ok:#4ade80}}
+:root[data-theme="dark"]{--bg:#12161c;--cd:#1b222b;--tx:#e8ecf1;--mu:#98a2b3;--bd:#2c3642;--ac:#2dd4bf;--wa:#fbbf24;--er:#f87171;--ok:#4ade80}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.w{max-width:980px;margin:0 auto;padding:12px}
+h1{font-size:18px;margin:4px 0 10px}h2{font-size:15px;margin:0 0 8px}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button,.b{border:1px solid var(--bd);background:var(--cd);color:var(--tx);padding:7px 12px;border-radius:8px;cursor:pointer;font:inherit}
+.tabs button.on,.b.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.b.d{color:var(--er)}
+.c{background:var(--cd);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px}
+.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:620px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd);vertical-align:middle}th{color:var(--mu);font-weight:600;font-size:12px}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;max-width:100%;box-sizing:border-box}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end}
+label{display:block;font-size:12px;color:var(--mu)}
+.bar{height:10px;background:var(--bd);border-radius:6px;overflow:hidden;min-width:100px}.bar i{display:block;height:100%}
+.al{padding:8px 10px;border-radius:8px;margin-bottom:6px;border-left:4px solid var(--wa);background:var(--bg)}
+.al.e{border-color:var(--er)}.al.i{border-color:var(--ac)}
+.tg{font-size:11px;padding:1px 6px;border-radius:10px;border:1px solid var(--bd);color:var(--mu)}
+.er{color:var(--er)}.wa{color:var(--wa)}.ok{color:var(--ok)}.mu{color:var(--mu)}
+.m{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
+.m>div{background:var(--cd);border-radius:10px;padding:16px;max-width:420px;width:100%}
+.k{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}.k div{background:var(--bg);border-radius:8px;padding:8px}.k b{font-size:16px;display:block}
+</style><style>mark{background:#fde047;color:#111;padding:0 2px;border-radius:2px}</style></head><body><div class="w"><div style="display:flex;justify-content:space-between;flex-wrap:wrap" class="mu"><span><b>Pengurusan Patologi</b> &middot; <span id="lnk"><a href="/">Bajet</a> &middot; <a href="/docs">Dokumen ISO</a> &middot; </span><b>Panduan &amp; Memo</b></span><span id="bar"></span></div><h1>📚 Panduan &amp; Memo</h1><div id="site" style="margin:-6px 0 10px"></div><div id="v"><div class="c">Loading…</div></div></div>
+<script>
+window.addEventListener('error',e=>{const v=document.getElementById('v');if(v&&/Loading/.test(v.textContent))v.innerHTML='<div class="c er">This page could not start: '+(e.message||'error')+'. Please tell IT.</div>'});
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function j(u,o){const r=await fetch(u+(u.includes('?')?'&':'?')+'vote=DOC',o&&{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});let t={};try{t=await r.json()}catch(e){}if(r.status===401){const e=new Error('auth');e.code=401;throw e}if(!r.ok)throw new Error(t.error||'Error '+r.status);return t}
+const T={Handbook:'Handbooks (hospital staff)',Memo:'Memos (hospital staff)',Supplement:'Supplements',Library:'Library (lab staff)',LabMemo:'Memos (lab staff)'},PUB=['Handbook','Memo','Supplement'],LAB=['Handbook','Memo','Supplement','Library','LabMemo'];
+const KL={Handbook:'Handbook for hospital staff',Memo:'Memo for hospital staff',Library:'Library: lab staff only',LabMemo:'Memo for lab staff only',Supplement:'Supplement: video or diagram'};
+let me=null,items=[],site={},tab='Handbook',q='',res=null,adding=false,tm,ver=0;
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const ext=n=>(String(n).split('.').pop()||'').toLowerCase(),url=(f,pg)=>(me?'/api/file?id='+f.id+'&vote=DOC':'/api/pubfile?id='+f.id)+(pg?'#page='+pg:'');
+function loginUI(){$('v').innerHTML='<div class="c" style="max-width:340px;margin:40px auto"><h2>Lab staff sign in</h2><label>Username</label><input id="lu1" style="width:100%"><label style="margin-top:8px">Password</label><input id="lp1" type="password" style="width:100%"><p><button class="b p" id="lb">Sign in</button></p><p id="le" class="er"></p></div>';
+ const go=async()=>{try{await j('/api/login',{username:$('lu1').value,password:$('lp1').value});location.reload()}catch(e){$('le').textContent=e.message}};$('lb').onclick=go;$('lp1').onkeydown=e=>{if(e.key==='Enter')go()}}
+window.outx=async()=>{await j('/api/logout',{});location.reload()};
+window.chpw=async()=>{const o=prompt('Current password'),n=o&&prompt('New password (8 or more characters)');if(!n)return;try{await j('/api/password',{old:o,new:n});alert('Password changed.')}catch(e){alert(e.message)}};
+async function load(){if(me){items=(await j('/api/col?name=handbook')).docs.map(x=>({id:x.id,...x.data}));site=(await j('/api/doc?path=site/main')).data||{}}
+ else{const r=await (await fetch('/api/pub')).json();if(r.error)throw new Error('auth');items=r.items;site=r.site||{}}draw()}
+async function boot(){try{me=await j('/api/me')}catch(e){me=null}
+ try{await load()}catch(e){if(!me)return loginUI();throw e}
+ if(!me||me.role==='staff')$('lnk').style.display='none';
+ $('bar').innerHTML=me?esc(me.name)+' &middot; <a href="#" onclick="chpw();return false">Change password</a> &middot; <a href="#" onclick="outx();return false">Sign out</a>':'<a href="#" onclick="loginUI();return false">Lab staff sign in</a>';
+ setInterval(async()=>{try{if(me){const v=(await j('/api/ver')).v;if(v!==ver){ver=v;if(!adding)load()}}else if(!adding)load()}catch(e){}},me?4000:30000)}
+function head(){const A=me&&me.canEdit;$('site').innerHTML=(site.hospital?'<b>'+esc(site.hospital)+'</b>':'<span class="mu">Hospital name not set</span>')+(site.contact?' &middot; '+esc(site.contact):'')+(A?' &middot; <a href="#" onclick="editSite();return false">Edit hospital name and contact</a>':'')}
+function editSite(){const h=prompt('Hospital name',site.hospital||'');if(h===null)return;const c=prompt('Contact (phone, email)',site.contact||'');if(c===null)return;const pub=confirm('Let hospital staff open the handbooks and memos without signing in?\n\nOK = open to everyone on the hospital network\nCancel = sign-in required');
+ j('/api/doc',{op:'set',path:'site/main',data:{hospital:h,contact:c,public:pub}}).then(load)}
+function setTab(t){tab=t;draw()}
+function draw(){head();const A=me&&me.canEdit,tabs=me?LAB:PUB;if(!tabs.includes(tab))tab=tabs[0];
+ $('v').innerHTML=`<div class="tabs">${tabs.map(t=>`<button class="${t===tab?'on':''}" onclick="setTab('${t}')">${T[t]}</button>`).join('')}</div>${adding?addCard():''}
+ <div class="c"><label>Search the titles and inside the PDF files</label><div style="display:flex;gap:6px"><input id="qs" value="${esc(q)}" oninput="sq(this.value)" style="flex:1" placeholder="Type or press the microphone"><button class="b" onclick="mic()" title="Voice search">🎤</button></div>${A?'<p style="margin:8px 0 0"><button class="b p" onclick="openAdd()">Upload</button></p>':''}</div>
+ <div id="res"></div><div class="c sc" id="lst"></div>`;showRes();list()}
+function sq(v){q=v;clearTimeout(tm);tm=setTimeout(async()=>{if(q.trim().length<2){res=null;showRes();list();return}
+ try{res=(me?await j('/api/hsearch?q='+encodeURIComponent(q)):await (await fetch('/api/pubsearch?q='+encodeURIComponent(q))).json()).results||[]}catch(e){res=[]}showRes();list()},300)}
+function hl(s){let o=esc(s);q.toLowerCase().split(/\s+/).filter(w=>w.length>=2).forEach(t=>{o=o.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>'<mark>'+m+'</mark>')});return o}
+function showRes(){const e=$('res');if(!e)return;if(res===null){e.innerHTML='';return}
+ e.innerHTML=res.length?`<div class="c"><h2>Found inside the files</h2>${res.map(r=>{const it=items.find(x=>x.id===r.id);return `<div class="al i"><b>${esc(r.title)}</b> <span class="tg">${esc(T[r.kind]||r.kind)}</span> page ${r.page}<br><span class="mu">&hellip;${hl(r.snippet)}&hellip;</span><br>${it?`<a class="b" href="${url(it.file,r.page)}" target="_blank" style="text-decoration:none">Open at page ${r.page}</a>`:''}</div>`}).join('')}</div>`:'<div class="c mu">Nothing found inside the files.</div>'}
+function list(){const w=q.toLowerCase().split(/\s+/).filter(Boolean),A=me&&me.canEdit;
+ const R=items.filter(d=>d.kind===tab&&w.every(x=>((d.title||'')+' '+(d.desc||'')).toLowerCase().includes(x))).sort((a,b)=>(b.imp?1:0)-(a.imp?1:0)||(b.date||'').localeCompare(a.date||'')||(a.title||'').localeCompare(b.title||''));
+ $('lst').innerHTML=`<table><tr><th>Title</th><th>Date</th><th>Description</th><th></th></tr>${R.map(d=>{const e=ext(d.file.name),lab=['mp4','webm'].includes(e)?'Play':['png','jpg','jpeg'].includes(e)?'View':e==='pdf'?'Open':'Download';
+  return `<tr ${d.imp?'style="background:rgba(251,191,36,.2)"':''}><td><b>${esc(d.title)}</b>${d.imp?' <span class="tg er">Important</span>':''}${me&&d.kind==='Supplement'?' <span class="tg">'+(d.aud==='lab'?'Lab staff only':'Hospital staff')+'</span>':''}</td><td>${esc(d.date||'')}</td><td>${esc(d.desc||'')}</td><td><a class="b p" href="${url(d.file)}" target="_blank" style="text-decoration:none">${lab}</a>${A?' '+(['Memo','LabMemo'].includes(d.kind)?`<button class="b" onclick="imp('${d.id}')">${d.imp?'Unmark important':'Mark important'}</button> `:'')+`<button class="b d" onclick="del('${d.id}')">Delete</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="4" class="mu">Nothing here yet.</td></tr>'}</table>`}
+function imp(id){const d=items.find(x=>x.id===id);j('/api/doc',{op:'update',path:'handbook/'+id,data:{imp:!d.imp}}).then(load)}
+function del(id){const d=items.find(x=>x.id===id);if(confirm('Delete "'+d.title+'" and its file?'))j('/api/doc',{op:'delete',path:'handbook/'+id,data:{}}).then(load)}
+function openAdd(){adding=true;draw()}
+function closeAdd(){adding=false;load()}
+const addCard=()=>`<div class="c"><h2>Upload</h2><div class="g"><div style="grid-column:span 2"><label>Goes into</label><select id="a_k" onchange="$('a_aw').style.display=this.value==='Supplement'?'block':'none'">${Object.keys(KL).map(k=>`<option value="${k}" ${k===tab?'selected':''}>${KL[k]}</option>`).join('')}</select></div>
+<div id="a_aw" style="display:${tab==='Supplement'?'block':'none'}"><label>Supplement is for</label><select id="a_au"><option value="hospital">Hospital staff</option><option value="lab">Lab staff only</option></select></div>
+<div style="grid-column:span 2"><label>Title</label><input id="a_t" style="width:100%"></div><div><label>Date</label><input id="a_d" type="date" value="${today()}"></div><div style="grid-column:span 2"><label>Description</label><input id="a_x" style="width:100%"></div>
+<div><label>File (PDF, Word, image, mp4, webm...)</label><input id="a_f" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.mp4,.webm,.txt,.csv"></div></div>
+<p><label><input id="a_i" type="checkbox"> Important (highlight)</label></p><p><button class="b p" id="a_s" onclick="save()">Upload</button> <button class="b" onclick="closeAdd()">Cancel</button></p></div>`;
+async function save(){const g=i=>$(i).value.trim(),k=g('a_k'),t=g('a_t'),f=$('a_f').files[0];if(!t||!f)return alert('Enter a title and choose the file.');
+ const b=$('a_s');b.disabled=true;b.textContent='Uploading...';
+ try{const up=await(await fetch('/api/upload?name='+encodeURIComponent(f.name)+'&vote=DOC',{method:'POST',body:f})).json();if(!up.id)throw new Error(up.error||'Upload failed');
+  const aud=k==='Supplement'?g('a_au'):(k==='Library'||k==='LabMemo'?'lab':'hospital');
+  await j('/api/doc',{op:'add',path:'handbook',data:{kind:k,aud,title:t,date:g('a_d'),desc:g('a_x'),imp:$('a_i').checked,file:{id:up.id,name:up.name,size:up.size},by:me.id}});
+  if(ext(f.name)==='pdf'&&!up.chars)alert('Saved. No text could be read from this PDF (it may be a scan), so searching inside it will not work.');tab=k;adding=false;await load()}
+ catch(e){alert(e.message);b.disabled=false;b.textContent='Upload'}}
+function mic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return alert('Voice search is not supported in this browser.');const r=new SR();r.lang='ms-MY';r.onresult=e=>{q=e.results[0][0].transcript;$('qs').value=q;sq(q)};r.onerror=e=>alert('Voice search could not start ('+e.error+'). On a plain http address the browser may block the microphone.');r.start()}
+boot();</script></body></html>
